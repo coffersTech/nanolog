@@ -1,0 +1,48 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/nanolog
+
+# Build output
+bin/
+/dist/
+
+# Go specific
+*.test
+*.out
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# NanoLog data files (generated at runtime)
+/data/
+*.nano
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Dependencies (if vendored)
+/vendor/
+
+# Test coverage
+coverage.txt
+coverage.html
+
+CONTRIBUTING.md

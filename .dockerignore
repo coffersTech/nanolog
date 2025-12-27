@@ -1,0 +1,28 @@
+# Version Control
+.git/
+.gitignore
+
+# Data & Config
+data/
+*.nano
+*.log
+
+# IDE & System
+.idea/
+.vscode/
+.DS_Store
+
+# Non-Server Source (Speed up build context)
+sdks/
+pkg/
+docs/
+scripts/
+README.md
+CONTRIBUTING.md
+
+# Build Artifacts
+nanolog
+nanolog.exe
+server/bin/
+server/nanolog
+server/internal/storage/log_*
