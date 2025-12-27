@@ -3,7 +3,7 @@
 **轻量级、高性能的 Go 原生日志数据库 (The SQLite for Logs)**
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/cofferstech/nanolog.svg)](https://hub.docker.com/r/cofferstech/nanolog)
-[![Go Report Card](https://goreportcard.com/badge/github.com/CopyCode-Ryan/nanolog)](https://goreportcard.com/report/github.com/CopyCode-Ryan/nanolog)
+[![Go Report Card](https://goreportcard.com/badge/github.com/coffersTech/nanolog)](https://goreportcard.com/report/github.com/coffersTech/nanolog)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---

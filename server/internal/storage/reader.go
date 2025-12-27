@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/CopyCode-Ryan/nanolog/server/internal/engine"
+	"github.com/coffersTech/nanolog/server/internal/engine"
 	"github.com/klauspost/compress/zstd"
 )
 

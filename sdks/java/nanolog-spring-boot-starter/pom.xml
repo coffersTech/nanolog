@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.copycode-ryan</groupId>
+    <groupId>io.github.cofferstech</groupId>
     <artifactId>nanolog-spring-boot-starter</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
 
     <name>NanoLog Spring Boot Starter</name>
     <description>Official Spring Boot integration for NanoLog - zero-config log shipping</description>
-    <url>https://github.com/CopyCode-Ryan/nanolog</url>
+    <url>https://github.com/coffersTech/nanolog</url>
 
     <licenses>
         <license>
@@ -25,14 +25,14 @@
             <name>Ryan</name>
             <email>ruifafan@gmail.com</email>
             <organization>CofersTech</organization>
-            <organizationUrl>https://github.com/CopyCode-Ryan</organizationUrl>
+            <organizationUrl>https://github.com/coffersTech</organizationUrl>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/CopyCode-Ryan/nanolog.git</connection>
-        <developerConnection>scm:git:ssh://github.com:CopyCode-Ryan/nanolog.git</developerConnection>
-        <url>http://github.com/CopyCode-Ryan/nanolog/tree/main</url>
+        <connection>scm:git:git://github.com/coffersTech/nanolog.git</connection>
+        <developerConnection>scm:git:ssh://github.com:coffersTech/nanolog.git</developerConnection>
+        <url>http://github.com/coffersTech/nanolog/tree/main</url>
     </scm>
 
     <properties>
@@ -81,7 +81,7 @@
         <repository>
             <id>github</id>
             <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/CopyCode-Ryan/nanolog</url>
+            <url>https://maven.pkg.github.com/coffersTech/nanolog</url>
         </repository>
     </distributionManagement>
 

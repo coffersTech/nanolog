@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CopyCode-Ryan/nanolog/server/internal/engine"
-	"github.com/CopyCode-Ryan/nanolog/server/internal/server"
-	"github.com/CopyCode-Ryan/nanolog/server/internal/storage"
+	"github.com/coffersTech/nanolog/server/internal/engine"
+	"github.com/coffersTech/nanolog/server/internal/server"
+	"github.com/coffersTech/nanolog/server/internal/storage"
 )
 
 func main() {

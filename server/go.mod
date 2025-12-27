@@ -1,4 +1,4 @@
-module github.com/CopyCode-Ryan/nanolog/server
+module github.com/coffersTech/nanolog/server
 
 go 1.22
 

@@ -19,7 +19,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'CopyCode-Ryan' # Adjustment if needed
+    if: github.repository_owner == 'coffersTech'
 
     steps:
       - name: Checkout repository
