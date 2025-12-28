@@ -3,9 +3,9 @@
 # NanoLog Live Data Generator
 # Targets the ingest API at port 8088
 
-URL="http://localhost:8088/api/ingest"
+URL="http://localhost:9090/api/ingest"
 SERVICES=("auth-service" "order-service" "payment-api")
-LEVELS=("1" "2" "3")
+LEVELS=("INFO" "WARN" "ERROR")
 MESSAGES=(
     "User authentication success"
     "Order #10293 processing started"
@@ -21,7 +21,6 @@ echo "Press [CTRL+C] to stop."
 
 while true; do
   # Get Current Nanosecond Timestamp
-  # macOS date command might not support %N, using a fallback
   if [[ "$OSTYPE" == "darwin"* ]]; then
       TS=$(python3 -c 'import time; print(int(time.time() * 1000000000))')
   else
@@ -32,17 +31,15 @@ while true; do
   LEVEL=${LEVELS[$RANDOM % ${#LEVELS[@]}]}
   SERVICE=${SERVICES[$RANDOM % ${#SERVICES[@]}]}
   MSG=${MESSAGES[$RANDOM % ${#MESSAGES[@]}]}
-
-  # Payload as JSON array
-  # Note: server expects [JSON] array or single object depending on parser logic.
-  # Current ingest server handleIngest uses s.parser.Get().ParseBytes(body)
-  # then v.GetInt64("timestamp"), etc.
-  # If the server is not optimized for arrays yet, we send a single object.
-  # As of previous implementation, it parses the body directly as an object.
   
-  PAYLOAD="{\"timestamp\": $TS, \"level\": \"$LEVEL\", \"service\": \"$SERVICE\", \"message\": \"$MSG\"}"
+  # Generate a simulated JSON payload for the message
+  INNER_PAYLOAD="{\\\"user_id\\\": $RANDOM, \\\"action\\\": \\\"login\\\", \\\"meta\\\": {\\\"ip\\\": \\\"192.168.1.$((RANDOM%255))\\\", \\\"browser\\\": \\\"Chrome\\\"}}"
 
-  curl -s -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$URL" > /dev/null
+  # Construct the full log entry with the JSON payload in the message
+  # Note: Including 'host' field as well for completeness
+  DATA="[{\"timestamp\": $TS, \"level\": \"$LEVEL\", \"service\": \"$SERVICE\", \"host\": \"gen-script.local\", \"message\": \"API Request Body: $INNER_PAYLOAD\"}]"
+
+  curl -s -X POST -H "Content-Type: application/json" -d "$DATA" "$URL" > /dev/null
 
   # Status output
   echo "[$(date +%H:%M:%S)] Sent Log: $LEVEL | $SERVICE | $MSG"
