@@ -8,6 +8,8 @@ import lombok.Setter;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,7 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     private String serviceName = "default";
     private int batchSize = 100;
     private long flushIntervalMs = 1000;
+    private String host = "unknown";
 
     private final LinkedBlockingQueue<ILoggingEvent> queue = new LinkedBlockingQueue<>(10000);
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -42,7 +45,16 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         workerThread = new Thread(this::workerLoop, "NanoLog-Worker");
         workerThread.setDaemon(true);
         workerThread.start();
-        addInfo("NanoLogAppender started. Server: " + serverUrl + ", Service: " + serviceName);
+
+        try {
+            if ("unknown".equals(host)) {
+                host = InetAddress.getLocalHost().getHostName();
+            }
+        } catch (UnknownHostException e) {
+            // keep unknown or env var?
+        }
+
+        addInfo("NanoLogAppender started. Server: " + serverUrl + ", Service: " + serviceName + ", Host: " + host);
     }
 
     @Override
@@ -137,6 +149,7 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             sb.append("\"timestamp\":").append(e.getTimeStamp() * 1_000_000).append(","); // Convert to nanos
             sb.append("\"level\":\"").append(mapLevel(e.getLevel().levelInt)).append("\",");
             sb.append("\"service\":\"").append(escapeJson(serviceName)).append("\",");
+            sb.append("\"host\":\"").append(escapeJson(host)).append("\",");
             sb.append("\"message\":\"").append(escapeJson(e.getFormattedMessage())).append("\"");
             sb.append("}");
         }
