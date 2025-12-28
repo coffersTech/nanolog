@@ -11,24 +11,30 @@ import (
 	"strings"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/coffersTech/nanolog/server/internal/engine"
 	"github.com/valyala/fastjson"
 )
 
 // IngestServer holds the HTTP server execution dependencies.
 type IngestServer struct {
-	mt          *engine.MemTable
-	queryEngine *engine.QueryEngine
-	webDir      string // Directory for static web files
-	srv         *http.Server
-	parser      fastjson.ParserPool // Pool of parsers to reduce allocations
+	mt            *engine.MemTable
+	queryEngine   *engine.QueryEngine
+	webDir        string // Directory for static web files
+	dataDir       string // Directory for log data
+	srv           *http.Server
+	parser        fastjson.ParserPool
+	ingestCounter int64 // Monotonic counter for total requests
+	ingestRate    int64 // Requests per second (updated periodically)
 }
 
-func NewIngestServer(mt *engine.MemTable, qe *engine.QueryEngine, webDir string) *IngestServer {
+func NewIngestServer(mt *engine.MemTable, qe *engine.QueryEngine, webDir string, dataDir string) *IngestServer {
 	return &IngestServer{
 		mt:          mt,
 		queryEngine: qe,
 		webDir:      webDir,
+		dataDir:     dataDir,
 	}
 }
 
@@ -39,6 +45,8 @@ func (s *IngestServer) Start(addr string) error {
 	// API routes
 	mux.HandleFunc("/api/ingest", s.handleIngest)
 	mux.HandleFunc("/api/search", s.handleQuery)
+	mux.HandleFunc("/api/histogram", s.handleHistogram)
+	mux.HandleFunc("/api/stats", s.handleStats)
 
 	// Static file serving for web directory
 	if s.webDir != "" {
@@ -73,7 +81,8 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log request entry
-	log.Printf("Incoming request from %s", r.RemoteAddr)
+	// log.Printf("Incoming request from %s", r.RemoteAddr) // Reduce noise
+	atomic.AddInt64(&s.ingestCounter, 1)
 
 	// Read body
 	body, err := io.ReadAll(r.Body)
@@ -209,6 +218,81 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 	// Return JSON
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(rows); err != nil {
+		log.Printf("JSON encode error: %v", err)
+	}
+}
+
+func (s *IngestServer) handleHistogram(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	q := r.URL.Query()
+	startStr := q.Get("start")
+	endStr := q.Get("end")
+	intervalStr := q.Get("interval") // User provides seconds? Let's check logic.
+
+	// Defaults
+	end := time.Now().UnixNano()
+	start := end - (1 * time.Hour).Nanoseconds() // Default last 1h
+	var interval int64 = 60 * 1_000_000_000      // Default 1 min (in nanos)
+
+	if startStr != "" {
+		if val, err := strconv.ParseInt(startStr, 10, 64); err == nil {
+			start = val * 1_000_000 // Convert ms to nanos
+		}
+	}
+	if endStr != "" {
+		if val, err := strconv.ParseInt(endStr, 10, 64); err == nil {
+			end = val * 1_000_000 // Convert ms to nanos
+		}
+	}
+	if intervalStr != "" {
+		if val, err := strconv.ParseInt(intervalStr, 10, 64); err == nil {
+			interval = val * 1_000_000_000 // Convert seconds to nanos
+		}
+	}
+
+	filter := engine.Filter{
+		MinTime: start,
+		MaxTime: end,
+		Service: q.Get("service"),
+		Host:    q.Get("host"),
+		Query:   q.Get("q"),
+	}
+
+	if lvlStr := q.Get("level"); lvlStr != "" {
+		if lvl, err := strconv.Atoi(lvlStr); err == nil {
+			filter.Level = uint8(lvl)
+		}
+	}
+
+	// Computes
+	points, err := s.queryEngine.ComputeHistogram(start, end, interval, filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(points); err != nil {
+		log.Printf("JSON encode error: %v", err)
+	}
+}
+
+// handleStats calculates system statistics.
+func (s *IngestServer) handleStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	stats := s.queryEngine.GetStats()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
 		log.Printf("JSON encode error: %v", err)
 	}
 }

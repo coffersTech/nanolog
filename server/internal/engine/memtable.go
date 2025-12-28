@@ -3,6 +3,8 @@ package engine
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const (
@@ -28,6 +30,10 @@ type MemTable struct {
 
 	// Metadata
 	size int64 // Estimated memory usage in bytes
+
+	// Stats
+	writeCounter int64   // Atomic counter for ingestion
+	currentRate  float64 // Logs per second
 }
 
 // NewMemTable initializes MemTable with pre-allocated capacity.
@@ -57,6 +63,9 @@ func (mt *MemTable) Append(ts int64, level string, service string, host string, 
 
 	// Update size estimate
 	mt.size += 8 + 1 + int64(len(service)+16) + int64(len(host)+16) + int64(len(msg)+16)
+
+	// Update stats counter
+	atomic.AddInt64(&mt.writeCounter, 1)
 }
 
 // Size returns the estimated memory usage in bytes.
@@ -175,4 +184,25 @@ func encodeLevel(l string) uint8 {
 	default:
 		return LevelInfo
 	}
+}
+
+// StartStatsTicker starts a background ticker to calculate ingestion rate.
+func (mt *MemTable) StartStatsTicker(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			count := atomic.SwapInt64(&mt.writeCounter, 0)
+			rate := float64(count) / interval.Seconds()
+			mt.mu.Lock()
+			mt.currentRate = rate
+			mt.mu.Unlock()
+		}
+	}()
+}
+
+// GetIngestionRate returns the current ingestion rate (logs/sec).
+func (mt *MemTable) GetIngestionRate() float64 {
+	mt.mu.RLock()
+	defer mt.mu.RUnlock()
+	return mt.currentRate
 }

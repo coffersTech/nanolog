@@ -30,7 +30,7 @@ case "$ACTION" in
     start)
         echo -e "${YELLOW}Building and starting...${NC}"
         go build -o bin/nanolog cmd/nanolog/main.go
-        ./bin/nanolog
+        ./bin/nanolog "${@:2}"
         ;;
     test)
         echo -e "${YELLOW}Running tests...${NC}"

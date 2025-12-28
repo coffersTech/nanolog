@@ -33,6 +33,7 @@ func main() {
 
 	// 1. Initialize global MemTable
 	mt := engine.NewMemTable()
+	mt.StartStatsTicker(1 * time.Second)
 	log.Printf("MemTable initialized. Capacity: %d rows", 4096)
 
 	// 2. Initialize QueryEngine with retention
@@ -51,7 +52,7 @@ func main() {
 	go qe.RunCleaner(1 * time.Hour)
 
 	// 3. Initialize IngestServer with web directory
-	srv := server.NewIngestServer(mt, qe, *webDir)
+	srv := server.NewIngestServer(mt, qe, *webDir, *dataDir)
 	addr := fmt.Sprintf(":%d", *port)
 
 	// 4. Start HTTP Server in a goroutine
