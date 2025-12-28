@@ -64,6 +64,7 @@ type FileIterator struct {
 	timestamps []int64
 	levels     []uint8
 	services   []string
+	hosts      []string
 	messages   []string
 
 	rowCount int
@@ -139,6 +140,12 @@ func (it *FileIterator) init() error {
 	}
 	it.services = bytesToStringSlice(svcData)
 
+	hostData, err := it.reader.readAndDecompress(it.file)
+	if err != nil {
+		return err
+	}
+	it.hosts = bytesToStringSlice(hostData)
+
 	msgData, err := it.reader.readAndDecompress(it.file)
 	if err != nil {
 		return err
@@ -146,7 +153,7 @@ func (it *FileIterator) init() error {
 	it.messages = bytesToStringSlice(msgData)
 
 	// Basic column length validation
-	if it.rowCount != len(it.levels) || it.rowCount != len(it.services) || it.rowCount != len(it.messages) {
+	if it.rowCount != len(it.levels) || it.rowCount != len(it.services) || it.rowCount != len(it.messages) || it.rowCount != len(it.hosts) {
 		return errors.New("column length mismatch")
 	}
 
@@ -179,6 +186,11 @@ func (it *FileIterator) Next() bool {
 			continue
 		}
 
+		host := it.hosts[it.cursor]
+		if it.filter.Host != "" && host != it.filter.Host {
+			continue
+		}
+
 		msg := it.messages[it.cursor]
 		if it.filter.Query != "" && !strings.Contains(msg, it.filter.Query) {
 			continue
@@ -189,6 +201,7 @@ func (it *FileIterator) Next() bool {
 			Timestamp: ts,
 			Level:     lvl,
 			Service:   svc,
+			Host:      host,
 			Message:   msg,
 		}
 		return true

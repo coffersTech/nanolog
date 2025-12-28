@@ -20,10 +20,11 @@ type MemTable struct {
 	mu sync.RWMutex
 
 	// Exported Columns
-	TsCol  []int64  // Timestamp
-	LvlCol []uint8  // Level (dictionary encoded)
-	SvcCol []string // Service name
-	MsgCol []string // Message content
+	TsCol   []int64  // Timestamp
+	LvlCol  []uint8  // Level (dictionary encoded)
+	SvcCol  []string // Service name
+	HostCol []string // Hostname/IP
+	MsgCol  []string // Message content
 
 	// Metadata
 	size int64 // Estimated memory usage in bytes
@@ -33,16 +34,17 @@ type MemTable struct {
 func NewMemTable() *MemTable {
 	cap := 4096
 	return &MemTable{
-		TsCol:  make([]int64, 0, cap),
-		LvlCol: make([]uint8, 0, cap),
-		SvcCol: make([]string, 0, cap),
-		MsgCol: make([]string, 0, cap),
-		size:   0,
+		TsCol:   make([]int64, 0, cap),
+		LvlCol:  make([]uint8, 0, cap),
+		SvcCol:  make([]string, 0, cap),
+		HostCol: make([]string, 0, cap),
+		MsgCol:  make([]string, 0, cap),
+		size:    0,
 	}
 }
 
 // Append adds a log entry.
-func (mt *MemTable) Append(ts int64, level string, service string, msg string) {
+func (mt *MemTable) Append(ts int64, level string, service string, host string, msg string) {
 	mt.mu.Lock()
 	defer mt.mu.Unlock()
 
@@ -50,10 +52,11 @@ func (mt *MemTable) Append(ts int64, level string, service string, msg string) {
 	lvl := encodeLevel(level)
 	mt.LvlCol = append(mt.LvlCol, lvl)
 	mt.SvcCol = append(mt.SvcCol, service)
+	mt.HostCol = append(mt.HostCol, host)
 	mt.MsgCol = append(mt.MsgCol, msg)
 
 	// Update size estimate
-	mt.size += 8 + 1 + int64(len(service)+16) + int64(len(msg)+16)
+	mt.size += 8 + 1 + int64(len(service)+16) + int64(len(host)+16) + int64(len(msg)+16)
 }
 
 // Size returns the estimated memory usage in bytes.
@@ -78,6 +81,7 @@ func (mt *MemTable) Reset() {
 	mt.TsCol = mt.TsCol[:0]
 	mt.LvlCol = mt.LvlCol[:0]
 	mt.SvcCol = mt.SvcCol[:0]
+	mt.HostCol = mt.HostCol[:0]
 	mt.MsgCol = mt.MsgCol[:0]
 	mt.size = 0
 }
@@ -134,6 +138,11 @@ func (mt *MemTable) Search(filter Filter, limit int) []LogRow {
 			continue
 		}
 
+		host := mt.HostCol[i]
+		if filter.Host != "" && host != filter.Host {
+			continue
+		}
+
 		msg := mt.MsgCol[i]
 		if filter.Query != "" && !strings.Contains(msg, filter.Query) {
 			continue
@@ -143,6 +152,7 @@ func (mt *MemTable) Search(filter Filter, limit int) []LogRow {
 			Timestamp: ts,
 			Level:     lvl,
 			Service:   svc,
+			Host:      host,
 			Message:   msg,
 		})
 	}

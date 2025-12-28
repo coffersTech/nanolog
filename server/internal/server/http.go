@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/coffersTech/nanolog/server/internal/engine"
@@ -111,12 +112,21 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			serviceStr = "default"
 		}
 
+		hostStr := string(val.GetStringBytes("host"))
+		if hostStr == "" {
+			// Fallback: Use IP from connection (strip port)
+			hostStr = r.RemoteAddr
+			if idx := strings.LastIndex(hostStr, ":"); idx != -1 {
+				hostStr = hostStr[:idx]
+			}
+		}
+
 		msg := string(val.GetStringBytes("message"))
 		if msg == "" {
 			msg = string(val.GetStringBytes("msg"))
 		}
 
-		s.mt.Append(tsVal, levelStr, serviceStr, msg)
+		s.mt.Append(tsVal, levelStr, serviceStr, hostStr, msg)
 	}
 
 	// Handle batch (Array) or single (Object)
@@ -176,6 +186,7 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	filter.Service = r.URL.Query().Get("service")
+	filter.Host = r.URL.Query().Get("host")
 	filter.Query = r.URL.Query().Get("q")
 
 	// Parse limit parameter (default 100)

@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"os"
 
-	"github.com/klauspost/compress/zstd"
 	"github.com/coffersTech/nanolog/server/internal/engine"
+	"github.com/klauspost/compress/zstd"
 )
 
 // NanoLog Header
@@ -41,6 +41,7 @@ func (cw *ColumnWriter) WriteSnapshot(filename string, mt *engine.MemTable) erro
 	tsData := mt.TsCol
 	lvlData := mt.LvlCol
 	svcData := mt.SvcCol
+	hostData := mt.HostCol
 	msgData := mt.MsgCol
 
 	rowCount := uint32(len(tsData))
@@ -67,6 +68,11 @@ func (cw *ColumnWriter) WriteSnapshot(filename string, mt *engine.MemTable) erro
 
 	// Service (String)
 	if err := cw.writeStringCol(f, svcData); err != nil {
+		return err
+	}
+
+	// Host (String)
+	if err := cw.writeStringCol(f, hostData); err != nil {
 		return err
 	}
 

@@ -7,6 +7,8 @@ type LogRecord struct {
 	Timestamp  int64
 	TraceID    string
 	Level      int
+	Service    string
+	Host       string
 	Message    string
 	Attributes map[string]interface{}
 }

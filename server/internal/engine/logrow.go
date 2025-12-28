@@ -6,6 +6,7 @@ type LogRow struct {
 	Timestamp int64
 	Level     uint8
 	Service   string
+	Host      string
 	Message   string
 }
 
@@ -15,5 +16,6 @@ type Filter struct {
 	MaxTime int64
 	Level   uint8
 	Service string
+	Host    string
 	Query   string // Global keyword search in message
 }
