@@ -155,6 +155,9 @@
                                 Service</th>
                             <th
                                 class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                Host</th>
+                            <th
+                                class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
                                 Message</th>
                         </tr>
                     </thead>
@@ -173,6 +176,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium">
                                 {{ log.Service }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium">
+                                {{ log.Host }}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-300 leading-relaxed font-mono break-all pr-12">
                                 <span class="bg-yellow-500/10 text-yellow-500"
@@ -233,6 +239,8 @@
                                 params.append('level', l !== undefined ? l : val);
                             } else if (k === 'service' || k === 'svc') {
                                 params.append('service', val);
+                            } else if (k === 'host' || k === 'ip' || k === 'hostname') {
+                                params.append('host', val);
                             } else if (k === 'start' || k === 'min_ts') {
                                 params.append('start', val);
                             } else if (k === 'end' || k === 'max_ts') {
