@@ -7,87 +7,100 @@
     <title>NanoLog Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <style>
-        [v-cloak] {
-            display: none;
-        }
-
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #111827;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #374151;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4b5563;
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans selection:bg-cyan-500/30">
     <div id="app" v-cloak class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-        <aside class="w-64 bg-black flex flex-col border-r border-gray-800">
-            <div class="p-6 flex items-center space-x-3">
-                <div
-                    class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                    <span class="text-white font-bold text-lg">N</span>
+        <aside class="w-64 bg-black flex flex-col border-r border-gray-800 shrink-0">
+            <!-- Brand -->
+            <div class="h-20 flex items-center px-6 border-b border-gray-800/50">
+                <div class="flex items-center space-x-3">
+                    <div
+                        class="w-9 h-9 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/10">
+                        <span class="text-white font-bold text-lg">N</span>
+                    </div>
+                    <div>
+                        <h1 class="text-sm font-bold text-white tracking-wide uppercase">NanoLog</h1>
+                        <p class="text-[10px] text-gray-500 font-medium">Observability Hub</p>
+                    </div>
                 </div>
-                <h1 class="text-lg font-bold tracking-tight text-white">NanoLog</h1>
             </div>
 
-            <nav class="flex-1 px-4 py-4 space-y-1">
-                <a href="#"
-                    class="flex items-center space-x-3 px-3 py-2.5 bg-gray-800 text-cyan-400 rounded-lg transition-all border border-gray-700/50">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
-                        </path>
-                    </svg>
-                    <span class="font-medium text-sm">Log Explorer</span>
-                </a>
-                <a href="#"
-                    class="flex items-center space-x-3 px-3 py-2.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all group">
-                    <svg class="w-5 h-5 group-hover:text-cyan-400" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                        </path>
-                    </svg>
-                    <span class="font-medium text-sm">Dashboard</span>
-                </a>
-                <a href="#"
-                    class="flex items-center space-x-3 px-3 py-2.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all group">
-                    <svg class="w-5 h-5 group-hover:text-cyan-400" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
-                        </path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                    <span class="font-medium text-sm">Settings</span>
-                </a>
+            <!-- Navigation -->
+            <nav class="flex-1 px-4 py-6 space-y-8 overflow-y-auto">
+                <!-- Group: MONITOR -->
+                <div>
+                    <h3 class="px-3 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mb-4">Monitor</h3>
+                    <div class="space-y-1">
+                        <a href="#" @click.prevent="switchView('discover')"
+                            :class="currentView === 'discover' ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'"
+                            class="group flex items-center space-x-3 px-3 py-2 rounded-lg transition-all">
+                            <svg class="w-5 h-5 flex-shrink-0"
+                                :class="currentView === 'discover' ? 'text-cyan-400' : 'text-gray-500 group-hover:text-gray-300'"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                                </path>
+                            </svg>
+                            <span class="text-sm font-medium">Log Explorer</span>
+                        </a>
+                        <a href="#" @click.prevent="switchView('dashboard')"
+                            :class="currentView === 'dashboard' ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'"
+                            class="group flex items-center space-x-3 px-3 py-2 rounded-lg transition-all">
+                            <svg class="w-5 h-5 flex-shrink-0"
+                                :class="currentView === 'dashboard' ? 'text-cyan-400' : 'text-gray-500 group-hover:text-gray-300'"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                                </path>
+                            </svg>
+                            <span class="text-sm font-medium">Dashboard</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Group: SYSTEM -->
+                <div>
+                    <h3 class="px-3 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mb-4">System</h3>
+                    <div class="space-y-1">
+                        <a href="#"
+                            class="group flex items-center space-x-3 px-3 py-2 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 rounded-lg transition-all">
+                            <svg class="w-5 h-5 text-gray-500 group-hover:text-gray-300" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                                </path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            <span class="text-sm font-medium">Settings</span>
+                        </a>
+                    </div>
+                </div>
             </nav>
 
-            <div class="p-4 border-t border-gray-800">
-                <div class="flex items-center justify-between text-xs text-gray-500">
-                    <span>Version 0.2.0</span>
-                    <span class="flex items-center text-green-500"><span
-                            class="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>Online</span>
+            <!-- Footer Status -->
+            <div class="p-4 border-t border-gray-800 bg-gray-950/20">
+                <div class="flex items-center space-x-3 px-2 py-2">
+                    <div class="relative">
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <div class="absolute inset-0 w-2 h-2 bg-green-500 rounded-full animate-ping opacity-75"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">System Status</p>
+                        <p class="text-xs text-green-500 font-medium truncate">Cluster Online</p>
+                    </div>
+                    <span class="text-[10px] font-mono text-gray-600">v0.2.0</span>
                 </div>
             </div>
         </aside>
 
         <!-- Content Area -->
-        <main class="flex-1 flex flex-col overflow-hidden bg-gray-900">
+        <!-- Content Area -->
+        <main v-show="currentView === 'discover'" class="flex-1 flex flex-col overflow-hidden bg-gray-900">
             <!-- Top Header -->
             <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8">
                 <div class="flex-1 max-w-2xl relative group">
@@ -129,6 +142,11 @@
                 </div>
             </header>
 
+            <!-- Histogram Chart -->
+            <div class="h-48 bg-gray-950 border-b border-gray-800 p-4 relative">
+                <canvas id="logHistogram"></canvas>
+            </div>
+
             <!-- Table Container -->
             <div class="flex-1 overflow-auto bg-gray-950/50 relative">
                 <!-- Loading State Overlay -->
@@ -162,32 +180,85 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-800/50">
-                        <tr v-for="(log, index) in filteredLogs" :key="index"
-                            class="group hover:bg-white/[0.02] transition-colors">
-                            <td
-                                class="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-400 group-hover:text-gray-300">
-                                {{ formatTimestamp(log.Timestamp) }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span :class="getLevelClass(log.Level)"
-                                    class="px-2.5 py-1 rounded text-[10px] font-bold tracking-tight uppercase shadow-sm">
-                                    {{ getLevelText(log.Level) }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium">
-                                {{ log.Service }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium">
-                                {{ log.Host }}
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-300 leading-relaxed font-mono break-all pr-12">
-                                <span class="bg-yellow-500/10 text-yellow-500"
-                                    v-if="searchQuery && log.Message.toLowerCase().includes(searchQuery.toLowerCase())">
-                                    {{ log.Message }}
-                                </span>
-                                <span v-else>{{ log.Message }}</span>
-                            </td>
-                        </tr>
+                        <template v-for="(log, index) in filteredLogs" :key="index">
+                            <tr @click="toggleRow(index)"
+                                class="group hover:bg-white/[0.02] transition-colors cursor-pointer border-l-2 border-transparent"
+                                :class="{'border-cyan-500 bg-white/[0.02]': expandedIndex === index}">
+                                <td
+                                    class="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-400 group-hover:text-gray-300">
+                                    {{ formatTimestamp(log.Timestamp) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="getLevelClass(log.Level)"
+                                        class="px-2.5 py-1 rounded text-[10px] font-bold tracking-tight uppercase shadow-sm">
+                                        {{ getLevelText(log.Level) }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium">
+                                    {{ log.Service }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-medium">
+                                    {{ log.Host }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-300 leading-relaxed font-mono break-all pr-12">
+                                    <div class="truncate max-w-xl">
+                                        <span class="bg-yellow-500/10 text-yellow-500"
+                                            v-if="searchQuery && log.Message.toLowerCase().includes(searchQuery.toLowerCase())">
+                                            {{ log.Message }}
+                                        </span>
+                                        <span v-else>{{ log.Message }}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            <!-- Detail Row -->
+                            <tr v-if="expandedIndex === index" class="bg-gray-900 border-b border-gray-800">
+                                <td colspan="5" class="px-6 py-6 p-4">
+                                    <div class="flex flex-col lg:flex-row gap-6">
+                                        <!-- Metadata -->
+                                        <div class="lg:w-1/3 space-y-3 text-sm">
+                                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                                Metadata</h4>
+                                            <div class="flex justify-between border-b border-gray-800 pb-2">
+                                                <span class="text-gray-500">Timestamp</span>
+                                                <span class="font-mono text-gray-300">{{ formatTimestamp(log.Timestamp)
+                                                    }}</span>
+                                            </div>
+                                            <div class="flex justify-between border-b border-gray-800 pb-2">
+                                                <span class="text-gray-500">Unix Nanos</span>
+                                                <span class="font-mono text-gray-300">{{ log.Timestamp }}</span>
+                                            </div>
+                                            <div class="flex justify-between border-b border-gray-800 pb-2">
+                                                <span class="text-gray-500">Level</span>
+                                                <span :class="getLevelClass(log.Level)"
+                                                    class="px-1.5 py-0.5 rounded text-[10px] uppercase">{{
+                                                    getLevelText(log.Level) }}</span>
+                                            </div>
+                                            <div class="flex justify-between border-b border-gray-800 pb-2">
+                                                <span class="text-gray-500">Service</span>
+                                                <span class="text-gray-300 font-medium">{{ log.Service }}</span>
+                                            </div>
+                                            <div class="flex justify-between border-b border-gray-800 pb-2">
+                                                <span class="text-gray-500">Host</span>
+                                                <span class="text-gray-300 font-medium">{{ log.Host }}</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Message / Payload -->
+                                        <div class="flex-1 min-w-0">
+                                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                                Payload</h4>
+                                            <div
+                                                class="bg-black/50 rounded-lg p-4 border border-gray-800 overflow-x-auto">
+                                                <pre v-if="isJson(log.Message)"
+                                                    class="font-mono text-xs text-green-400 break-words whitespace-pre-wrap">{{ formatJson(log.Message) }}</pre>
+                                                <pre v-else
+                                                    class="font-mono text-xs text-gray-300 break-words whitespace-pre-wrap">{{ log.Message }}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
                         <tr v-if="filteredLogs.length === 0 && !loading">
                             <td colspan="4" class="px-6 py-24 text-center">
                                 <div class="flex flex-col items-center">
@@ -207,113 +278,49 @@
                 </table>
             </div>
         </main>
+
+        <!-- Dashboard View -->
+        <main v-if="currentView === 'dashboard'" class="flex-1 flex flex-col overflow-auto bg-gray-900 p-8">
+            <h2 class="text-2xl font-bold text-white mb-6">System Overview</h2>
+
+            <!-- Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="text-gray-400 text-sm font-medium uppercase mb-1">Ingestion Rate</div>
+                    <div class="text-3xl font-bold text-white">{{ stats.ingestion_rate.toFixed(2) }} <span
+                            class="text-base font-normal text-gray-500">logs/sec</span></div>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="text-gray-400 text-sm font-medium uppercase mb-1">Total Logs</div>
+                    <div class="text-3xl font-bold text-white">{{ formatNumber(stats.total_logs) }}</div>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="text-gray-400 text-sm font-medium uppercase mb-1">Disk Usage</div>
+                    <div class="text-3xl font-bold text-white">{{ formatBytes(stats.disk_usage) }}</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Pie Chart -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h3 class="text-lg font-bold text-white mb-4">Level Distribution</h3>
+                    <div class="h-64">
+                        <canvas id="levelChart"></canvas>
+                    </div>
+                </div>
+                <!-- Bar Chart -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h3 class="text-lg font-bold text-white mb-4">Top Services</h3>
+                    <div class="h-64">
+                        <canvas id="serviceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <script>
-        const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
-
-        createApp({
-            setup() {
-                const logs = ref([]);
-                const loading = ref(true);
-                const error = ref(null);
-                const searchQuery = ref('');
-                const autoRefresh = ref(false);
-                let refreshInterval = null;
-
-                const parseSearchQuery = (q) => {
-                    const params = new URLSearchParams();
-                    params.append('limit', '100');
-                    if (!q) return params.toString();
-
-                    const parts = q.split(/\s+/);
-                    let textSearch = [];
-
-                    parts.forEach(part => {
-                        if (part.includes('=')) {
-                            const [key, val] = part.split('=');
-                            const k = key.toLowerCase();
-                            if (k === 'level') {
-                                const lvls = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3, 'FATAL': 4 };
-                                const l = lvls[val.toUpperCase()];
-                                params.append('level', l !== undefined ? l : val);
-                            } else if (k === 'service' || k === 'svc') {
-                                params.append('service', val);
-                            } else if (k === 'host' || k === 'ip' || k === 'hostname') {
-                                params.append('host', val);
-                            } else if (k === 'start' || k === 'min_ts') {
-                                params.append('start', val);
-                            } else if (k === 'end' || k === 'max_ts') {
-                                params.append('end', val);
-                            } else {
-                                textSearch.push(part);
-                            }
-                        } else {
-                            textSearch.push(part);
-                        }
-                    });
-
-                    if (textSearch.length > 0) {
-                        params.append('q', textSearch.join(' '));
-                    }
-                    return params.toString();
-                };
-
-                const fetchLogs = async () => {
-                    if (loading.value && logs.value.length > 0) return;
-                    loading.value = true;
-                    error.value = null;
-                    try {
-                        const queryString = parseSearchQuery(searchQuery.value);
-                        const response = await fetch(`/api/search?${queryString}`);
-                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                        const data = await response.json();
-                        logs.value = data || [];
-                    } catch (e) {
-                        error.value = `Failed to fetch: ${e.message}`;
-                    } finally {
-                        loading.value = false;
-                    }
-                };
-
-                const filteredLogs = computed(() => logs.value);
-
-                const formatTimestamp = (ts) => {
-                    const ms = Math.floor(ts / 1000000);
-                    const d = new Date(ms);
-                    return d.getFullYear() + "-" +
-                        String(d.getMonth() + 1).padStart(2, '0') + "-" +
-                        String(d.getDate()).padStart(2, '0') + " " +
-                        String(d.getHours()).padStart(2, '0') + ":" +
-                        String(d.getMinutes()).padStart(2, '0') + ":" +
-                        String(d.getSeconds()).padStart(2, '0');
-                };
-
-                const getLevelText = (l) => ({ 0: 'DEBUG', 1: 'INFO', 2: 'WARN', 3: 'ERROR', 4: 'FATAL' }[l] || 'UNKNOWN');
-
-                const getLevelClass = (l) => ({
-                    0: 'bg-gray-800 text-gray-400',
-                    1: 'bg-green-500/10 text-green-500',
-                    2: 'bg-yellow-500/10 text-yellow-500',
-                    3: 'bg-red-500/10 text-red-500',
-                    4: 'bg-purple-500/10 text-purple-500'
-                }[l] || 'bg-gray-800 text-gray-400');
-
-                watch(autoRefresh, (v) => {
-                    if (v) refreshInterval = setInterval(fetchLogs, 2000);
-                    else if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
-                });
-
-                onMounted(fetchLogs);
-                onUnmounted(() => refreshInterval && clearInterval(refreshInterval));
-
-                return {
-                    logs, filteredLogs, loading, error, searchQuery, autoRefresh,
-                    fetchLogs, formatTimestamp, getLevelText, getLevelClass
-                };
-            }
-        }).mount('#app');
-    </script>
+    <script src="js/app.js"></script>
 </body>
 
 </html>
