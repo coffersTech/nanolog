@@ -97,35 +97,39 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract fields
-	tsVal := v.GetInt64("timestamp")
-	if tsVal == 0 {
-		tsVal = time.Now().UnixNano()
+	// Helper function to process a single log object
+	processLog := func(val *fastjson.Value) {
+		tsVal := val.GetInt64("timestamp")
+		if tsVal == 0 {
+			tsVal = time.Now().UnixNano()
+		}
+
+		levelStr := string(val.GetStringBytes("level"))
+
+		serviceStr := string(val.GetStringBytes("service"))
+		if serviceStr == "" {
+			serviceStr = "default"
+		}
+
+		msg := string(val.GetStringBytes("message"))
+		if msg == "" {
+			msg = string(val.GetStringBytes("msg"))
+		}
+
+		s.mt.Append(tsVal, levelStr, serviceStr, msg)
 	}
 
-	// TraceID handling removed for now as MemTable doesn't support it in this version
-	// traceID := v.GetStringBytes("trace_id")
-
-	levelStr := string(v.GetStringBytes("level"))
-
-	// Service field
-	serviceStr := string(v.GetStringBytes("service"))
-	if serviceStr == "" {
-		serviceStr = "default"
+	// Handle batch (Array) or single (Object)
+	if v.Type() == fastjson.TypeArray {
+		arr, _ := v.Array()
+		for _, val := range arr {
+			processLog(val)
+		}
+	} else {
+		processLog(v)
 	}
 
-	msg := string(v.GetStringBytes("message"))
-	if msg == "" {
-		msg = string(v.GetStringBytes("msg"))
-	}
-
-	// Attributes handling removed for now
-	// attrs := v.GetObject("attributes")
-
-	// Store
-	s.mt.Append(tsVal, levelStr, serviceStr, msg)
-
-	// Auto-flush when rows >= 10 (for testing)
+	// Auto-flush logic
 	if s.mt.Len() >= 10 {
 		if err := s.queryEngine.Flush(); err != nil {
 			log.Printf("Auto-flush failed: %v", err)
