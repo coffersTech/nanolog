@@ -56,6 +56,10 @@ func (qe *QueryEngine) purgeExpiredFiles() {
 				log.Printf("Cleaner error: failed to delete %s: %v", name, err)
 			} else {
 				log.Printf("Expired file deleted: %s", name)
+				// Update stats cache
+				qe.mu.Lock()
+				delete(qe.statsCache, name)
+				qe.mu.Unlock()
 			}
 		}
 	}

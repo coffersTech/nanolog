@@ -205,11 +205,14 @@ createApp({
             fetchHistogram();
         };
 
-        const formatBytes = (bytes, decimals = 2) => {
-            if (!+bytes) return '0 Bytes';
-            const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        const formatBytes = (bytes) => {
+            if (!+bytes) return '0.00 MB';
+            const gb = 1024 * 1024 * 1024;
+            const mb = 1024 * 1024;
+            if (bytes >= gb) {
+                return (bytes / gb).toFixed(2) + ' GB';
+            }
+            return (bytes / mb).toFixed(2) + ' MB';
         };
         const formatNumber = (num) => new Intl.NumberFormat().format(num);
 
@@ -229,8 +232,17 @@ createApp({
                 if (pieChart && data.level_dist) {
                     const keys = Object.keys(data.level_dist);
                     if (keys.length > 0) {
+                        const colors = {
+                            'INFO': '#10b981',
+                            'WARN': '#f59e0b',
+                            'ERROR': '#ef4444',
+                            'FATAL': '#7c3aed',
+                            'DEBUG': '#6b7280',
+                            'UNKNOWN': '#374151'
+                        };
                         pieChart.data.labels = keys;
                         pieChart.data.datasets[0].data = Object.values(data.level_dist);
+                        pieChart.data.datasets[0].backgroundColor = keys.map(k => colors[k] || '#374151');
                         pieChart.update();
                     }
                 }

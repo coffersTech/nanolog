@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,17 +24,27 @@ type QueryEngine struct {
 	readerFunc SnapshotReaderFunc
 	writerFunc SnapshotWriterFunc
 	Retention  time.Duration
+
+	// Stats Cache
+	statsCache map[string]SystemStats
+	mu         sync.RWMutex
 }
 
-// NewQueryEngine creates a new QueryEngine.
+// NewQueryEngine creates a new QueryEngine and initializes the stats cache.
 func NewQueryEngine(dataDir string, mt *MemTable, readerFunc SnapshotReaderFunc, writerFunc SnapshotWriterFunc, retention time.Duration) *QueryEngine {
-	return &QueryEngine{
+	qe := &QueryEngine{
 		dataDir:    dataDir,
 		mt:         mt,
 		readerFunc: readerFunc,
 		writerFunc: writerFunc,
 		Retention:  retention,
+		statsCache: make(map[string]SystemStats),
 	}
+
+	// Initial cache population
+	qe.loadStatsCache()
+
+	return qe
 }
 
 // Flush writes the current MemTable to disk and resets it.
@@ -52,9 +63,18 @@ func (qe *QueryEngine) Flush() error {
 	filename := fmt.Sprintf("log_%d_%d.nano", minTs, maxTs)
 	path := filepath.Join(qe.dataDir, filename)
 
+	// Compute stats before reset
+	rows := qe.mt.Search(Filter{}, -1)
+	fStats := qe.computeStatsFromRows(rows)
+
 	if err := qe.writerFunc(path, qe.mt); err != nil {
 		return err
 	}
+
+	// Update cache
+	qe.mu.Lock()
+	qe.statsCache[filename] = fStats
+	qe.mu.Unlock()
 
 	qe.mt.Reset()
 	log.Printf("Flushed to disk: %s", filename)
@@ -127,4 +147,55 @@ func (qe *QueryEngine) findNanoFiles() ([]string, error) {
 	}
 
 	return files, nil
+}
+
+func (qe *QueryEngine) loadStatsCache() {
+	files, err := qe.findNanoFiles()
+	if err != nil {
+		log.Printf("Failed to load stats cache: %v", err)
+		return
+	}
+
+	for _, file := range files {
+		// Optimization: Read all rows to aggregate stats.
+		// In a real system, we might store these in a dedicated index or file header.
+		rows, err := qe.readerFunc(file, Filter{})
+		if err != nil {
+			log.Printf("Failed to read file %s for stats: %v", file, err)
+			continue
+		}
+
+		fStats := qe.computeStatsFromRows(rows)
+
+		qe.mu.Lock()
+		qe.statsCache[filepath.Base(file)] = fStats
+		qe.mu.Unlock()
+	}
+	log.Printf("Loaded stats cache for %d files", len(qe.statsCache))
+}
+
+func (qe *QueryEngine) computeStatsFromRows(rows []LogRow) SystemStats {
+	s := SystemStats{
+		TotalLogs:   int64(len(rows)),
+		LevelDist:   make(map[string]int),
+		TopServices: make(map[string]int),
+	}
+	for _, r := range rows {
+		lvlStr := "UNKNOWN"
+		switch r.Level {
+		case LevelDebug:
+			lvlStr = "DEBUG"
+		case LevelInfo:
+			lvlStr = "INFO"
+		case LevelWarn:
+			lvlStr = "WARN"
+		case LevelError:
+			lvlStr = "ERROR"
+		case LevelFatal:
+			lvlStr = "FATAL"
+		}
+		s.LevelDist[lvlStr]++
+		s.TopServices[r.Service]++
+	}
+	return s
 }
