@@ -24,13 +24,19 @@ func NewColumnWriter() (*ColumnWriter, error) {
 	return &ColumnWriter{encoder: enc}, nil
 }
 
-// WriteSnapshot writes the MemTable to a .nano file.
+// WriteSnapshot writes the MemTable to a .nano file atomics.
 func (cw *ColumnWriter) WriteSnapshot(filename string, mt *engine.MemTable) error {
-	f, err := os.Create(filename)
+	tmpFile := filename + ".tmp"
+	f, err := os.Create(tmpFile)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		f.Close()
+		if err != nil {
+			os.Remove(tmpFile)
+		}
+	}()
 
 	// 1. Write Header
 	if _, err := f.Write(MagicHeader); err != nil {
@@ -82,7 +88,12 @@ func (cw *ColumnWriter) WriteSnapshot(filename string, mt *engine.MemTable) erro
 	}
 
 	// 4. Footer
-	return cw.writeFooter(f, rowCount, minTs, maxTs)
+	if err := cw.writeFooter(f, rowCount, minTs, maxTs); err != nil {
+		return err
+	}
+
+	f.Close()
+	return os.Rename(tmpFile, filename)
 }
 
 func (cw *ColumnWriter) writeInt64Col(f *os.File, data []int64) error {

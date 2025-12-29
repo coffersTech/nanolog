@@ -29,7 +29,7 @@ type MemTable struct {
 	MsgCol  []string // Message content
 
 	// Metadata
-	size int64 // Estimated memory usage in bytes
+	SizeBytes int64 // Estimated memory usage in bytes
 
 	// Stats
 	writeCounter int64   // Atomic counter for ingestion
@@ -40,12 +40,12 @@ type MemTable struct {
 func NewMemTable() *MemTable {
 	cap := 4096
 	return &MemTable{
-		TsCol:   make([]int64, 0, cap),
-		LvlCol:  make([]uint8, 0, cap),
-		SvcCol:  make([]string, 0, cap),
-		HostCol: make([]string, 0, cap),
-		MsgCol:  make([]string, 0, cap),
-		size:    0,
+		TsCol:     make([]int64, 0, cap),
+		LvlCol:    make([]uint8, 0, cap),
+		SvcCol:    make([]string, 0, cap),
+		HostCol:   make([]string, 0, cap),
+		MsgCol:    make([]string, 0, cap),
+		SizeBytes: 0,
 	}
 }
 
@@ -55,24 +55,23 @@ func (mt *MemTable) Append(ts int64, level string, service string, host string, 
 	defer mt.mu.Unlock()
 
 	mt.TsCol = append(mt.TsCol, ts)
-	lvl := encodeLevel(level)
+	lvl := EncodeLevel(level)
 	mt.LvlCol = append(mt.LvlCol, lvl)
 	mt.SvcCol = append(mt.SvcCol, service)
 	mt.HostCol = append(mt.HostCol, host)
 	mt.MsgCol = append(mt.MsgCol, msg)
 
-	// Update size estimate
-	mt.size += 8 + 1 + int64(len(service)+16) + int64(len(host)+16) + int64(len(msg)+16)
+	// Update size estimate: msg + service + host + 8 (timestamp) + 1 (level)
+	addedSize := int64(len(msg) + len(service) + len(host) + 8 + 1)
+	atomic.AddInt64(&mt.SizeBytes, addedSize)
 
 	// Update stats counter
 	atomic.AddInt64(&mt.writeCounter, 1)
 }
 
-// Size returns the estimated memory usage in bytes.
-func (mt *MemTable) Size() int64 {
-	mt.mu.RLock()
-	defer mt.mu.RUnlock()
-	return mt.size
+// GetSize returns the estimated memory usage in bytes.
+func (mt *MemTable) GetSize() int64 {
+	return atomic.LoadInt64(&mt.SizeBytes)
 }
 
 // Len returns the number of rows.
@@ -92,7 +91,7 @@ func (mt *MemTable) Reset() {
 	mt.SvcCol = mt.SvcCol[:0]
 	mt.HostCol = mt.HostCol[:0]
 	mt.MsgCol = mt.MsgCol[:0]
-	mt.size = 0
+	atomic.StoreInt64(&mt.SizeBytes, 0)
 }
 
 // MinTimestamp returns the minimum timestamp (first element).
@@ -169,7 +168,8 @@ func (mt *MemTable) Search(filter Filter, limit int) []LogRow {
 	return result
 }
 
-func encodeLevel(l string) uint8 {
+// EncodeLevel converts string level to uint8.
+func EncodeLevel(l string) uint8 {
 	switch strings.ToUpper(l) {
 	case "DEBUG":
 		return LevelDebug
@@ -183,6 +183,24 @@ func encodeLevel(l string) uint8 {
 		return LevelFatal
 	default:
 		return LevelInfo
+	}
+}
+
+// DecodeLevel converts uint8 level to string.
+func DecodeLevel(l uint8) string {
+	switch l {
+	case LevelDebug:
+		return "DEBUG"
+	case LevelInfo:
+		return "INFO"
+	case LevelWarn:
+		return "WARN"
+	case LevelError:
+		return "ERROR"
+	case LevelFatal:
+		return "FATAL"
+	default:
+		return "INFO"
 	}
 }
 

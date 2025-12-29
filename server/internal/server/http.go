@@ -19,7 +19,6 @@ import (
 
 // IngestServer holds the HTTP server execution dependencies.
 type IngestServer struct {
-	mt            *engine.MemTable
 	queryEngine   *engine.QueryEngine
 	webDir        string // Directory for static web files
 	dataDir       string // Directory for log data
@@ -29,9 +28,8 @@ type IngestServer struct {
 	ingestRate    int64 // Requests per second (updated periodically)
 }
 
-func NewIngestServer(mt *engine.MemTable, qe *engine.QueryEngine, webDir string, dataDir string) *IngestServer {
+func NewIngestServer(qe *engine.QueryEngine, webDir string, dataDir string) *IngestServer {
 	return &IngestServer{
-		mt:          mt,
 		queryEngine: qe,
 		webDir:      webDir,
 		dataDir:     dataDir,
@@ -135,7 +133,7 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			msg = string(val.GetStringBytes("msg"))
 		}
 
-		s.mt.Append(tsVal, levelStr, serviceStr, hostStr, msg)
+		s.queryEngine.Ingest(tsVal, levelStr, serviceStr, hostStr, msg)
 	}
 
 	// Handle batch (Array) or single (Object)
@@ -148,12 +146,8 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		processLog(v)
 	}
 
-	// Auto-flush logic
-	if s.mt.Len() >= 10 {
-		if err := s.queryEngine.Flush(); err != nil {
-			log.Printf("Auto-flush failed: %v", err)
-		}
-	}
+	// 4. Batch Sync WAL to disk once per request for high performance
+	s.queryEngine.SyncWAL()
 
 	w.WriteHeader(http.StatusOK)
 }

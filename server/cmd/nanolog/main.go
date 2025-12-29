@@ -52,7 +52,7 @@ func main() {
 	go qe.RunCleaner(1 * time.Hour)
 
 	// 3. Initialize IngestServer with web directory
-	srv := server.NewIngestServer(mt, qe, *webDir, *dataDir)
+	srv := server.NewIngestServer(qe, *webDir, *dataDir)
 	addr := fmt.Sprintf(":%d", *port)
 
 	// 4. Start HTTP Server in a goroutine

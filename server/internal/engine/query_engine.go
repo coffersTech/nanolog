@@ -25,20 +25,54 @@ type QueryEngine struct {
 	writerFunc SnapshotWriterFunc
 	Retention  time.Duration
 
+	// Configuration
+	MaxTableSize int64
+
 	// Stats Cache
 	statsCache map[string]SystemStats
 	mu         sync.RWMutex
+
+	// WAL for crash recovery
+	wal *WAL
 }
 
 // NewQueryEngine creates a new QueryEngine and initializes the stats cache.
 func NewQueryEngine(dataDir string, mt *MemTable, readerFunc SnapshotReaderFunc, writerFunc SnapshotWriterFunc, retention time.Duration) *QueryEngine {
+	// Initialize WAL
+	walPath := filepath.Join(dataDir, "wal.log")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Printf("Warning: failed to create data dir for WAL: %v", err)
+	}
+
+	wal, err := OpenWAL(walPath)
+	if err != nil {
+		log.Printf("Warning: failed to open WAL: %v", err)
+	}
+
 	qe := &QueryEngine{
-		dataDir:    dataDir,
-		mt:         mt,
-		readerFunc: readerFunc,
-		writerFunc: writerFunc,
-		Retention:  retention,
-		statsCache: make(map[string]SystemStats),
+		dataDir:      dataDir,
+		mt:           mt,
+		readerFunc:   readerFunc,
+		writerFunc:   writerFunc,
+		Retention:    retention,
+		MaxTableSize: 64 * 1024 * 1024, // 64MB Default
+		statsCache:   make(map[string]SystemStats),
+		wal:          wal,
+	}
+
+	// Crash Recovery: Replay WAL if it has data
+	if wal != nil {
+		recoveredRows, err := wal.Replay()
+		if err == nil && len(recoveredRows) > 0 {
+			log.Printf("Crash recovery: replaying %d logs from WAL...", len(recoveredRows))
+			for _, row := range recoveredRows {
+				// Re-append to current MemTable
+				// Note: We avoid calling qe.Ingest here to prevent re-writing to WAL
+				qe.mt.Append(row.Timestamp, DecodeLevel(row.Level), row.Service, row.Host, row.Message)
+			}
+		} else if err != nil {
+			log.Printf("WAL replay warning: %v", err)
+		}
 	}
 
 	// Initial cache population
@@ -81,10 +115,102 @@ func (qe *QueryEngine) Flush() error {
 	return nil
 }
 
+// Ingest adds a log row to the WAL and MemTable, triggering a background flush if needed.
+func (qe *QueryEngine) Ingest(ts int64, level, service, host, msg string) {
+	// 1. Write to WAL first for durability
+	if qe.wal != nil {
+		if err := qe.wal.Write(ts, level, service, host, msg); err != nil {
+			log.Printf("WAL write error: %v", err)
+		}
+	}
+
+	// 2. Append to MemTable
+	qe.mt.Append(ts, level, service, host, msg)
+
+	// Periodically log size for user visibility (every ~10MB)
+	currentSize := qe.mt.GetSize()
+	if currentSize > 0 && currentSize%(10*1024*1024) < 2000 { // Approx every 10MB
+		log.Printf("Current MemTable size: %.2f MB / %d MB", float64(currentSize)/(1024*1024), qe.MaxTableSize/(1024*1024))
+	}
+
+	if currentSize >= qe.MaxTableSize {
+		qe.mu.Lock()
+		// Double check size under lock
+		if qe.mt.GetSize() < qe.MaxTableSize {
+			qe.mu.Unlock()
+			return
+		}
+
+		log.Printf("MemTable reached threshold (%d MB), swapping for async flush...", qe.MaxTableSize/(1024*1024))
+		oldTable := qe.mt
+		qe.mt = NewMemTable()
+		// Inherit stats ticker for the new table
+		qe.mt.StartStatsTicker(1 * time.Second)
+		qe.mu.Unlock()
+
+		// Background flush
+		go qe.flushMemTable(oldTable)
+	}
+}
+
+// SyncWAL flushes the WAL file to disk.
+func (qe *QueryEngine) SyncWAL() {
+	if qe.wal != nil {
+		if err := qe.wal.Sync(); err != nil {
+			log.Printf("WAL sync error: %v", err)
+		}
+	}
+}
+
+func (qe *QueryEngine) flushMemTable(mt *MemTable) {
+	if mt.Len() == 0 {
+		return
+	}
+
+	// Ensure data directory exists
+	if err := os.MkdirAll(qe.dataDir, 0755); err != nil {
+		log.Printf("Background flush directory error: %v", err)
+		return
+	}
+
+	minTs := mt.MinTimestamp()
+	maxTs := mt.MaxTimestamp()
+	filename := fmt.Sprintf("log_%d_%d.nano", minTs, maxTs)
+	path := filepath.Join(qe.dataDir, filename)
+
+	// Compute stats for cache
+	rows := mt.Search(Filter{}, -1)
+	fStats := qe.computeStatsFromRows(rows)
+
+	if err := qe.writerFunc(path, mt); err != nil {
+		log.Printf("Background flush write error: %v", err)
+		return
+	}
+
+	// Store in cache
+	qe.mu.Lock()
+	qe.statsCache[filename] = fStats
+	qe.mu.Unlock()
+
+	// Truncate WAL after successful write
+	if qe.wal != nil {
+		if err := qe.wal.Reset(); err != nil {
+			log.Printf("WAL reset error: %v", err)
+		}
+	}
+
+	log.Printf("Background flush completed: %s", filename)
+}
+
 // ExecuteScan scans memory and then .nano files and returns up to `limit` rows matching the filter.
 func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
-	// 1. Search MemTable first (memory)
-	result := qe.mt.Search(filter, limit)
+	// 1. Grab current MemTable under lock to avoid inconsistency if swapped
+	qe.mu.RLock()
+	mt := qe.mt
+	qe.mu.RUnlock()
+
+	// 2. Search MemTable first (memory)
+	result := mt.Search(filter, limit)
 
 	if len(result) >= limit {
 		return result, nil
@@ -156,12 +282,15 @@ func (qe *QueryEngine) loadStatsCache() {
 		return
 	}
 
+	corruptedCount := 0
 	for _, file := range files {
 		// Optimization: Read all rows to aggregate stats.
-		// In a real system, we might store these in a dedicated index or file header.
 		rows, err := qe.readerFunc(file, Filter{})
 		if err != nil {
-			log.Printf("Failed to read file %s for stats: %v", file, err)
+			// If file is corrupted, we log and skip it.
+			// In the future, we could move it to a 'corrupted' subfolder.
+			log.Printf("Skipping corrupted file %s: %v", filepath.Base(file), err)
+			corruptedCount++
 			continue
 		}
 
@@ -171,7 +300,12 @@ func (qe *QueryEngine) loadStatsCache() {
 		qe.statsCache[filepath.Base(file)] = fStats
 		qe.mu.Unlock()
 	}
-	log.Printf("Loaded stats cache for %d files", len(qe.statsCache))
+
+	if corruptedCount > 0 {
+		log.Printf("Loaded stats cache: %d files loaded, %d corrupted files skipped", len(qe.statsCache), corruptedCount)
+	} else {
+		log.Printf("Loaded stats cache for %d files", len(qe.statsCache))
+	}
 }
 
 func (qe *QueryEngine) computeStatsFromRows(rows []LogRow) SystemStats {

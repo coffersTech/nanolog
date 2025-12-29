@@ -21,10 +21,15 @@ func (qe *QueryEngine) GetStats() SystemStats {
 		TopServices: make(map[string]int),
 	}
 
-	// 1. Ingestion Rate (from MemTable)
-	stats.IngestionRate = qe.mt.GetIngestionRate()
+	// 1. Grab current MemTable under lock to avoid inconsistency if swapped
+	qe.mu.RLock()
+	mt := qe.mt
+	qe.mu.RUnlock()
 
-	// 2. Aggregate from Cache (Persisted)
+	// 2. Ingestion Rate (from MemTable)
+	stats.IngestionRate = mt.GetIngestionRate()
+
+	// 3. Aggregate from Cache (Persisted)
 	qe.mu.RLock()
 	var totalPersistedLogs int64
 	for _, fStats := range qe.statsCache {
@@ -38,7 +43,7 @@ func (qe *QueryEngine) GetStats() SystemStats {
 	}
 	qe.mu.RUnlock()
 
-	// 3. Disk Usage
+	// 4. Disk Usage
 	var size int64
 	_ = filepath.Walk(qe.dataDir, func(_ string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
@@ -48,20 +53,20 @@ func (qe *QueryEngine) GetStats() SystemStats {
 	})
 	stats.DiskUsage = size
 
-	// 4. MemTable Stats (Live)
-	qe.mt.mu.RLock()
-	defer qe.mt.mu.RUnlock()
+	// 5. MemTable Stats (Live)
+	mt.mu.RLock()
+	defer mt.mu.RUnlock()
 
-	rowCount := len(qe.mt.TsCol)
+	rowCount := len(mt.TsCol)
 	stats.TotalLogs = totalPersistedLogs + int64(rowCount)
 
 	for i := 0; i < rowCount; i++ {
 		// Service
-		svc := qe.mt.SvcCol[i]
+		svc := mt.SvcCol[i]
 		stats.TopServices[svc]++
 
 		// Level
-		lvl := qe.mt.LvlCol[i]
+		lvl := mt.LvlCol[i]
 		lvlStr := "UNKNOWN"
 		switch lvl {
 		case LevelDebug:

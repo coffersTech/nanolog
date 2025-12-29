@@ -5,8 +5,8 @@ import (
 )
 
 type HistogramPoint struct {
-	Time  int64 `json:"time"`  // Bucket start timestamp
-	Count int   `json:"count"` // Number of logs in this bucket
+	Time  int64 `json:"time"`
+	Count int   `json:"count"`
 }
 
 // ComputeHistogram aggregates log counts over time buckets.
