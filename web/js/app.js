@@ -1,9 +1,11 @@
 const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
 
+const STORAGE_KEY = 'nanolog_session';
+
 createApp({
     setup() {
         const logs = ref([]);
-        const loading = ref(true);
+        const loading = ref(false);
         const error = ref(null);
         const searchQuery = ref('');
         const autoRefresh = ref(false);
@@ -12,6 +14,100 @@ createApp({
         const stats = ref({ ingestion_rate: 0, disk_usage: 0, total_logs: 0 });
         let refreshInterval = null;
         let statsInterval = null;
+
+        // Auth State
+        const isAuthenticated = ref(false);
+        const authToken = ref('');
+        const loginForm = ref({ username: 'admin', password: '', remember: true });
+        const userRole = ref('');
+        const currentUser = ref('');
+        const systemInitialized = ref(true);
+
+        // Management State
+        const settingsTab = ref('tokens');
+        const users = ref([]);
+        const tokens = ref([]);
+        const showAddUserModal = ref(false);
+        const newUser = ref({ username: '', password: '', role: 'admin' });
+        const showAddTokenModal = ref(false);
+        const newToken = ref({ name: '', type: 'write' });
+        const generatedToken = ref(null);
+        const initForm = ref({ username: '', password: '' });
+        const retentionInput = ref('');
+
+        const apiFetch = async (url, options = {}) => {
+            const headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${authToken.value}`
+            };
+
+            const response = await fetch(url, { ...options, headers });
+
+            if (response.status === 401) {
+                isAuthenticated.value = false;
+                authToken.value = '';
+                localStorage.removeItem(STORAGE_KEY);
+                throw new Error('Unauthorized');
+            }
+
+            return response;
+        };
+
+        const login = async () => {
+            if (!loginForm.value.username || !loginForm.value.password) return;
+            loading.value = true;
+            error.value = null;
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: loginForm.value.username,
+                        password: loginForm.value.password
+                    })
+                });
+
+                if (!response.ok) {
+                    const txt = await response.text();
+                    throw new Error(txt || 'Invalid credentials');
+                }
+
+                const data = await response.json();
+                authToken.value = data.token;
+                userRole.value = data.role;
+                currentUser.value = data.username;
+
+                if (loginForm.value.remember) {
+                    localStorage.setItem(STORAGE_KEY, authToken.value);
+                    localStorage.setItem('nanolog_role', userRole.value);
+                    localStorage.setItem('nanolog_user', currentUser.value);
+                } else {
+                    localStorage.removeItem(STORAGE_KEY);
+                }
+
+                isAuthenticated.value = true;
+                fetchAll();
+                if (currentView.value === 'dashboard') initDashboard();
+            } catch (e) {
+                error.value = e.message || "Login failed";
+                authToken.value = '';
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        const logout = () => {
+            isAuthenticated.value = false;
+            authToken.value = '';
+            userRole.value = '';
+            currentUser.value = '';
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('nanolog_role');
+            localStorage.removeItem('nanolog_user');
+            // Clear current data
+            logs.value = [];
+            stats.value = { ingestion_rate: 0, disk_usage: 0, total_logs: 0 };
+        };
 
         const parseSearchQuery = (q) => {
             const params = new URLSearchParams();
@@ -52,17 +148,19 @@ createApp({
         };
 
         const fetchLogs = async () => {
+            if (!isAuthenticated.value) return;
             if (loading.value && logs.value.length > 0) return;
             loading.value = true;
             error.value = null;
             try {
                 const queryString = parseSearchQuery(searchQuery.value);
-                const response = await fetch(`/api/search?${queryString}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const response = await apiFetch(`/api/search?${queryString}`);
                 const data = await response.json();
                 logs.value = data || [];
             } catch (e) {
-                error.value = `Failed to fetch: ${e.message}`;
+                if (e.message !== 'Unauthorized') {
+                    error.value = `Failed to fetch logs: ${e.message}`;
+                }
             } finally {
                 loading.value = false;
             }
@@ -115,7 +213,9 @@ createApp({
         // Chart Logic
         let chartInstance = null;
         const initChart = () => {
-            const ctx = document.getElementById('logHistogram').getContext('2d');
+            const el = document.getElementById('logHistogram');
+            if (!el) return;
+            const ctx = el.getContext('2d');
             chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -161,14 +261,14 @@ createApp({
         };
 
         const fetchHistogram = async () => {
+            if (!isAuthenticated.value) return;
             try {
                 let qs = parseSearchQuery(searchQuery.value);
                 // Ensure interval is set (default 60s if not)
                 // This logic could be improved to dynamic interval based on time range
                 if (!qs.includes('interval=')) qs += '&interval=60';
 
-                const res = await fetch(`/api/histogram?${qs}`);
-                if (!res.ok) return;
+                const res = await apiFetch(`/api/histogram?${qs}`);
                 const data = await res.json();
 
                 if (chartInstance) {
@@ -185,25 +285,159 @@ createApp({
                     chartInstance.update();
                 }
             } catch (e) {
-                console.error("Histogram fetch error", e);
+                if (e.message !== 'Unauthorized') console.error("Histogram fetch error", e);
             }
         };
 
         watch(autoRefresh, (v) => {
-            if (v) refreshInterval = setInterval(() => { fetchLogs(); fetchHistogram(); }, 2000); // Update both
+            if (v && isAuthenticated.value) refreshInterval = setInterval(() => { fetchLogs(); fetchHistogram(); }, 2000); // Update both
             else if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
         });
 
-        onMounted(() => {
-            initChart();
-            fetchLogs();
-            fetchHistogram(); // Initial load
-        });
-
         const fetchAll = () => {
+            if (!isAuthenticated.value) return;
             fetchLogs();
             fetchHistogram();
         };
+
+        const fetchConfig = async () => {
+            try {
+                const res = await apiFetch('/api/system/config');
+                const data = await res.json();
+                retentionInput.value = data.retention;
+            } catch (e) { }
+        };
+
+        const updateRetention = async () => {
+            try {
+                const res = await apiFetch('/api/system/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ retention: retentionInput.value })
+                });
+                if (res.ok) alert("Retention policy updated. Will take effect on next restart.");
+            } catch (e) { alert(e.message); }
+        };
+
+        const fetchUsers = async () => {
+            if (userRole.value !== 'super_admin') return;
+            try {
+                const res = await apiFetch('/api/users');
+                users.value = await res.json();
+            } catch (e) { }
+        };
+
+        const addUser = async () => {
+            try {
+                const res = await apiFetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newUser.value)
+                });
+                if (res.ok) {
+                    showAddUserModal.value = false;
+                    newUser.value = { username: '', password: '', role: 'admin' };
+                    fetchUsers();
+                }
+            } catch (e) { alert(e.message); }
+        };
+
+        const deleteUser = async (username) => {
+            if (!confirm(`Delete user ${username}?`)) return;
+            try {
+                const res = await apiFetch(`/api/users/${username}`, { method: 'DELETE' });
+                if (res.ok) fetchUsers();
+            } catch (e) { }
+        };
+
+        const fetchTokens = async () => {
+            try {
+                const res = await apiFetch('/api/tokens');
+                tokens.value = await res.json();
+            } catch (e) { }
+        };
+
+        const generateToken = async () => {
+            try {
+                const res = await apiFetch('/api/tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newToken.value)
+                });
+                const data = await res.json();
+                generatedToken.value = data.token;
+                showAddTokenModal.value = false;
+                newToken.value = { name: '', type: 'write' };
+                fetchTokens();
+            } catch (e) { alert(e.message); }
+        };
+
+        const revokeToken = async (id) => {
+            if (!confirm('Revoke this API Key? Machines using it will lose access immediately.')) return;
+            try {
+                await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
+                fetchTokens();
+            } catch (e) { }
+        };
+
+        const copyGeneratedToken = () => {
+            navigator.clipboard.writeText(generatedToken.value);
+            alert("Token copied to clipboard!");
+        };
+
+        const checkSystemStatus = async () => {
+            const res = await fetch('/api/system/status');
+            const data = await res.json();
+            systemInitialized.value = data.initialized;
+        };
+
+        const initializeSystem = async () => {
+            loading.value = true;
+            error.value = null;
+            try {
+                const res = await fetch('/api/system/init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(initForm.value)
+                });
+                if (!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+                authToken.value = data.token;
+                userRole.value = data.role;
+                currentUser.value = data.username;
+                isAuthenticated.value = true;
+                systemInitialized.value = true;
+                localStorage.setItem(STORAGE_KEY, data.token);
+                localStorage.setItem('nanolog_role', data.role);
+                localStorage.setItem('nanolog_user', data.username);
+                fetchAll();
+            } catch (e) { error.value = e.message; }
+            finally { loading.value = false; }
+        };
+
+        onMounted(async () => {
+            await checkSystemStatus();
+            const savedToken = localStorage.getItem(STORAGE_KEY);
+            if (savedToken) {
+                authToken.value = savedToken;
+                userRole.value = localStorage.getItem('nanolog_role') || '';
+                currentUser.value = localStorage.getItem('nanolog_user') || '';
+                // Verify token
+                try {
+                    const res = await apiFetch('/api/stats');
+                    if (res.ok) {
+                        isAuthenticated.value = true;
+                        initChart();
+                        fetchAll();
+                    } else {
+                        localStorage.removeItem(STORAGE_KEY);
+                    }
+                } catch (e) {
+                    localStorage.removeItem(STORAGE_KEY);
+                }
+            }
+            loading.value = false;
+        });
 
         const formatBytes = (bytes) => {
             if (!+bytes) return '0.00 MB';
@@ -221,10 +455,9 @@ createApp({
 
 
         const fetchStats = async () => {
-            if (currentView.value !== 'dashboard') return;
+            if (!isAuthenticated.value || currentView.value !== 'dashboard') return;
             try {
-                const res = await fetch('/api/stats');
-                if (!res.ok) return;
+                const res = await apiFetch('/api/stats');
                 const data = await res.json();
                 stats.value = data;
 
@@ -256,7 +489,7 @@ createApp({
                         barChart.update();
                     }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { if (e.message !== 'Unauthorized') console.error(e); }
         };
 
         const initDashboard = () => {
@@ -333,13 +566,24 @@ createApp({
         };
 
         const switchView = (view) => {
+            // Cleanup previous view state
+            if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+            if (pieChart) { pieChart.destroy(); pieChart = null; }
+            if (barChart) { barChart.destroy(); barChart = null; }
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
             currentView.value = view;
+
             if (view === 'dashboard') {
                 setTimeout(initDashboard, 100);
+            } else if (view === 'settings') {
+                fetchUsers();
+                fetchTokens();
+                fetchConfig();
             } else {
-                if (statsInterval) clearInterval(statsInterval);
-                if (pieChart) pieChart.destroy();
-                if (barChart) barChart.destroy();
+                // Default to discover view
+                setTimeout(initChart, 100);
+                setTimeout(fetchAll, 150);
             }
         };
 
@@ -352,7 +596,12 @@ createApp({
         return {
             logs, filteredLogs, loading, error, searchQuery, autoRefresh, expandedIndex, currentView, stats, switchView,
             toggleRow, isJson, formatJson, formatBytes, formatNumber,
-            fetchLogs: fetchAll, formatTimestamp, getLevelText, getLevelClass
+            fetchLogs: fetchAll, formatTimestamp, getLevelText, getLevelClass,
+            isAuthenticated, authToken, loginForm, login, logout,
+            userRole, currentUser, systemInitialized, settingsTab,
+            users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
+            initForm, retentionInput,
+            addUser, deleteUser, generateToken, revokeToken, copyGeneratedToken, updateRetention, initializeSystem
         };
     }
 }).mount('#app');

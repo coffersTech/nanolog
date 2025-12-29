@@ -10,7 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/coffersTech/nanolog/server/internal/controller"
 	"github.com/coffersTech/nanolog/server/internal/engine"
+	"github.com/coffersTech/nanolog/server/internal/pkg/security"
 	"github.com/coffersTech/nanolog/server/internal/server"
 	"github.com/coffersTech/nanolog/server/internal/storage"
 )
@@ -21,12 +23,29 @@ func main() {
 	retentionStr := flag.String("retention", "168h", "Data retention duration (e.g. 72h, 7d)")
 	dataDir := flag.String("data", "../data", "Directory to store .nano files")
 	webDir := flag.String("web", "../web", "Directory for static web files")
+	keyPath := flag.String("key", "", "Path to the master key file (defaults to <data>/nanolog.key)")
 	flag.Parse()
 
 	// Parse retention duration
 	retention, err := time.ParseDuration(*retentionStr)
+	// 0. Initialize Security Layer
+	realKeyPath := *keyPath
+	if realKeyPath == "" {
+		realKeyPath = fmt.Sprintf("%s/.nanolog.key", *dataDir)
+	}
+
+	generated, err := security.InitMasterKey(realKeyPath)
 	if err != nil {
-		log.Fatalf("Invalid retention duration: %v", err)
+		log.Fatalf("Failed to initialize security layer: %v", err)
+	}
+
+	if generated {
+		fmt.Println("┌────────────────────────────────────────────────────────────────────────┐")
+		fmt.Println("│                                WARNING                                 │")
+		fmt.Println("├────────────────────────────────────────────────────────────────────────┤")
+		fmt.Printf("│ A new Master Key has been generated at %-31s │\n", realKeyPath)
+		fmt.Println("│ Please back up this file! Without it, you cannot recover your data.    │")
+		fmt.Println("└────────────────────────────────────────────────────────────────────────┘")
 	}
 
 	log.Println("NanoLog Kernel v0.1 Started...")
@@ -51,8 +70,14 @@ func main() {
 	// Start Background Cleaner
 	go qe.RunCleaner(1 * time.Hour)
 
-	// 3. Initialize IngestServer with web directory
-	srv := server.NewIngestServer(qe, *webDir, *dataDir)
+	// 3. Initialize Metadata Store
+	metaStore := controller.NewStore(fmt.Sprintf("%s/.nanolog.sys", *dataDir))
+	if err := metaStore.Load(); err != nil {
+		log.Fatalf("Failed to load systems metadata: %v", err)
+	}
+
+	// 4. Initialize IngestServer with meta store
+	srv := server.NewIngestServer(qe, metaStore, *webDir, *dataDir)
 	addr := fmt.Sprintf(":%d", *port)
 
 	// 4. Start HTTP Server in a goroutine

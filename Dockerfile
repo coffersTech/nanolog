@@ -34,7 +34,7 @@ COPY web/ ./web/
 VOLUME /root/data
 
 # Expose the default port
-EXPOSE 8088
+EXPOSE 8080
 
 # Run the application
 # We use --data=/root/data to ensure it points to the container volume

@@ -16,6 +16,13 @@ echo -e "${GREEN}=== NanoLog Server ===${NC}"
 
 # Parse arguments
 ACTION="${1:-run}"
+ARGS="${@:2}"
+
+# If first arg is a flag, default to 'run' and use all args
+if [[ "$ACTION" == -* ]]; then
+    ARGS="$@"
+    ACTION="run"
+fi
 
 case "$ACTION" in
     build)
@@ -25,12 +32,12 @@ case "$ACTION" in
         ;;
     run)
         echo -e "${YELLOW}Running in development mode...${NC}"
-        go run cmd/nanolog/main.go
+        go run cmd/nanolog/main.go $ARGS
         ;;
     start)
         echo -e "${YELLOW}Building and starting...${NC}"
         go build -o bin/nanolog cmd/nanolog/main.go
-        ./bin/nanolog "${@:2}"
+        ./bin/nanolog $ARGS
         ;;
     test)
         echo -e "${YELLOW}Running tests...${NC}"
