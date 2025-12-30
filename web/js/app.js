@@ -35,6 +35,7 @@ createApp({
         const generatedToken = ref(null);
         const initForm = ref({ username: '', password: '' });
         const retentionInput = ref('');
+        const showLogoutConfirm = ref(false);
 
         const apiFetch = async (url, options = {}) => {
             const headers = {
@@ -98,6 +99,10 @@ createApp({
         };
 
         const logout = () => {
+            showLogoutConfirm.value = true;
+        };
+
+        const confirmLogout = () => {
             isAuthenticated.value = false;
             authToken.value = '';
             userRole.value = '';
@@ -108,6 +113,11 @@ createApp({
             // Clear current data
             logs.value = [];
             stats.value = { ingestion_rate: 0, disk_usage: 0, total_logs: 0 };
+            showLogoutConfirm.value = false;
+        };
+
+        const cancelLogout = () => {
+            showLogoutConfirm.value = false;
         };
 
         const parseSearchQuery = (q) => {
@@ -611,7 +621,7 @@ createApp({
             logs, filteredLogs, loading, error, searchQuery, autoRefresh, expandedIndex, currentView, stats, switchView,
             toggleRow, isJson, formatJson, formatBytes, formatNumber,
             fetchLogs: fetchAll, formatTimestamp, getLevelText, getLevelClass,
-            isAuthenticated, authToken, loginForm, login, logout,
+            isAuthenticated, authToken, loginForm, login, logout, showLogoutConfirm, confirmLogout, cancelLogout,
             userRole, currentUser, systemInitialized, nodeRole, settingsTab,
             users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
             initForm, retentionInput,

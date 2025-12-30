@@ -80,23 +80,25 @@
                             </svg>
                             <span class="text-sm font-medium">Settings</span>
                         </a>
-
-                        <a href="#" @click.prevent="logout"
-                            class="group flex items-center space-x-3 px-3 py-2 text-gray-500 hover:text-red-400 hover:bg-red-400/5 rounded-lg transition-all mt-4 border-t border-gray-800/50 pt-4">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
-                                </path>
-                            </svg>
-                            <span class="text-sm font-medium">Logout</span>
-                        </a>
                     </div>
                 </div>
             </nav>
 
             <!-- Footer Status -->
-            <div class="p-4 border-t border-gray-800 bg-gray-950/20">
-                <div class="flex items-center space-x-3 px-2 py-2">
+            <div class="border-t border-gray-800 bg-gray-950/20">
+                <!-- Logout Button -->
+                <a href="#" @click.prevent="logout"
+                    class="group flex items-center space-x-3 px-2 py-2 mb-3 mt-3 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                        </path>
+                    </svg>
+                    <span class="text-sm font-medium">Logout</span>
+                </a>
+
+                <!-- Status Info -->
+                <div class="flex items-center space-x-3 px-2 py-2 border-t border-gray-800/50 pt-3">
                     <div class="relative">
                         <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                         <div class="absolute inset-0 w-2 h-2 bg-green-500 rounded-full animate-ping opacity-75"></div>
@@ -106,7 +108,7 @@
                         <p class="text-xs text-green-500 font-medium truncate">{{ nodeRole === 'all' ? 'Cluster Online'
                             : (nodeRole === 'admin' ? 'Admin Console' : 'Data Node') }}</p>
                     </div>
-                    <span class="text-[10px] font-mono text-gray-600">v0.4.0</span>
+                    <span class="text-[10px] font-mono text-gray-600">v0.5.0</span>
                 </div>
             </div>
         </aside>
@@ -749,6 +751,36 @@
             </div>
         </div>
 
+        <!-- Logout Confirmation Modal -->
+        <div v-if="showLogoutConfirm"
+            class="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                <div class="text-center space-y-4">
+                    <div class="w-14 h-14 bg-red-500/20 rounded-xl flex items-center justify-center mx-auto">
+                        <svg class="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                            </path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Confirm Logout</h3>
+                        <p class="text-sm text-gray-500 mt-1">Are you sure you want to log out of NanoLog?</p>
+                    </div>
+                    <div class="flex space-x-3 pt-2">
+                        <button @click="cancelLogout"
+                            class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <button @click="confirmLogout"
+                            class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Engine No Login Overlay -->
         <div v-if="nodeRole === 'engine' && !isAuthenticated"
             class="fixed inset-0 z-[100] bg-gray-950/90 backdrop-blur-2xl flex items-center justify-center p-6">
@@ -772,7 +804,7 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.1"></script>
+    <script src="js/app.js?v=1.2"></script>
 </body>
 
 </html>
