@@ -33,7 +33,7 @@
         <!-- Sidebar -->
         <aside class="w-64 bg-black flex flex-col border-r border-gray-800 shrink-0">
             <!-- Brand -->
-            <div class="h-20 flex items-center px-6 border-b border-gray-800/50">
+            <div class="h-20 flex items-center justify-between px-6 border-b border-gray-800/50">
                 <div class="flex items-center space-x-3">
                     <div
                         class="w-9 h-9 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/10">
@@ -41,16 +41,22 @@
                     </div>
                     <div>
                         <h1 class="text-sm font-bold text-white tracking-wide uppercase">NanoLog</h1>
-                        <p class="text-[10px] text-gray-500 font-medium">Observability Hub</p>
+                        <p class="text-xs text-gray-500 font-medium">Observability Hub</p>
                     </div>
                 </div>
+                <!-- Language Switcher Trigger -->
+                <button @click="confirmSwitchLanguage" title="Switch Language / 切换语言"
+                    class="px-2 py-1 text-xs font-bold text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 rounded transition-all bg-gray-800/50">
+                    {{ currentLang === 'en' ? 'EN' : '中文' }}
+                </button>
             </div>
 
             <!-- Navigation -->
             <nav class="flex-1 px-4 py-6 space-y-8 overflow-y-auto">
                 <!-- Group: MONITOR -->
                 <div>
-                    <h3 class="px-3 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mb-4">Monitor</h3>
+                    <h3 class="px-3 text-xs font-bold text-gray-600 uppercase tracking-[0.2em] mb-4">{{
+                        t('nav.header_monitor') }}</h3>
                     <div class="space-y-1">
                         <a v-if="nodeRole !== 'admin'" href="#" @click.prevent="switchView('discover')"
                             :class="currentView === 'discover' ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'"
@@ -62,7 +68,7 @@
                                     d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
                                 </path>
                             </svg>
-                            <span class="text-sm font-medium">Log Explorer</span>
+                            <span class="text-sm font-medium">{{ t('nav.discover') }}</span>
                         </a>
                         <a v-if="nodeRole !== 'admin'" href="#" @click.prevent="switchView('dashboard')"
                             :class="currentView === 'dashboard' ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'"
@@ -74,14 +80,15 @@
                                     d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
                                 </path>
                             </svg>
-                            <span class="text-sm font-medium">Dashboard</span>
+                            <span class="text-sm font-medium">{{ t('nav.dashboard') }}</span>
                         </a>
                     </div>
                 </div>
 
                 <!-- Group: SYSTEM -->
                 <div>
-                    <h3 class="px-3 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mb-4">System</h3>
+                    <h3 class="px-3 text-xs font-bold text-gray-600 uppercase tracking-[0.2em] mb-4">{{
+                        t('nav.header_system') }}</h3>
                     <div class="space-y-1">
                         <a v-if="nodeRole !== 'engine'" href="#" @click.prevent="switchView('settings')"
                             :class="currentView === 'settings' ? 'bg-cyan-500/10 text-cyan-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'"
@@ -95,7 +102,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                             </svg>
-                            <span class="text-sm font-medium">Settings</span>
+                            <span class="text-sm font-medium">{{ t('nav.settings') }}</span>
                         </a>
                     </div>
                 </div>
@@ -117,7 +124,7 @@
                             <p class="text-sm font-medium text-white truncate">{{ currentUser }}</p>
                             <span
                                 :class="userRole === 'super_admin' ? 'text-purple-400' : userRole === 'admin' ? 'text-cyan-400' : 'text-gray-500'"
-                                class="text-[10px] font-bold uppercase">{{ userRole }}</span>
+                                class="text-xs font-bold uppercase">{{ userRole }}</span>
                         </div>
                         <svg class="w-4 h-4 text-gray-500 transition-transform"
                             :class="showUserMenu ? 'rotate-180' : ''" fill="none" stroke="currentColor"
@@ -137,7 +144,7 @@
                                     d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z">
                                 </path>
                             </svg>
-                            <span class="text-sm font-medium">Change Password</span>
+                            <span class="text-sm font-medium">{{ t('nav.change_password') }}</span>
                         </button>
                         <div class="border-t border-gray-800"></div>
                         <button @click="logout(); showUserMenu = false"
@@ -147,7 +154,8 @@
                                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
                                 </path>
                             </svg>
-                            <span class="text-sm font-medium">Logout</span>
+                            <span class="text-sm font-medium">{{ t('nav.logout') }}</span>
+                        </button>
                         </button>
                     </div>
                 </div>
@@ -159,9 +167,11 @@
                         <div class="absolute inset-0 w-2 h-2 bg-green-500 rounded-full animate-ping opacity-75"></div>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">System Status</p>
-                        <p class="text-xs text-green-500 font-medium truncate">{{ nodeRole === 'all' ? 'Cluster Online'
-                            : (nodeRole === 'admin' ? 'Admin Console' : 'Data Node') }}</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-tighter">{{
+                            t('common.system_status') }}</p>
+                        <p class="text-xs text-green-500 font-medium truncate">{{ nodeRole === 'all' ?
+                            t('common.cluster_online')
+                            : (nodeRole === 'admin' ? t('common.admin_console') : t('common.data_node')) }}</p>
                     </div>
                     <span class="text-[10px] font-mono text-gray-600">v0.5.0</span>
                 </div>
@@ -177,14 +187,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <p class="text-[11px] text-blue-400 font-medium tracking-wide">DATA NODE MODE: Please visit the Admin
-                    Node for cluster configuration and user management.</p>
+                <p class="text-xs text-blue-400 font-medium tracking-wide">{{ t('auth.engine_mode_desc') }}</p>
             </div>
             <!-- Top Header -->
             <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8">
                 <div class="flex-1 max-w-2xl relative group">
                     <input type="text" v-model="searchQuery" @keyup.enter="fetchLogs"
-                        placeholder="Search logs (e.g. level=ERROR service=auth)..."
+                        :placeholder="t('search.placeholder')"
                         class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-cyan-400 transition-colors"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,6 +203,7 @@
                 </div>
 
                 <div class="flex items-center space-x-6 ml-6">
+
                     <label class="flex items-center space-x-3 cursor-pointer group">
                         <div class="relative">
                             <input type="checkbox" v-model="autoRefresh" class="sr-only peer">
@@ -201,8 +211,8 @@
                                 class="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600">
                             </div>
                         </div>
-                        <span class="text-sm font-medium text-gray-400 group-hover:text-gray-200 transition-colors">Auto
-                            Refresh</span>
+                        <span class="text-sm font-medium text-gray-400 group-hover:text-gray-200 transition-colors">{{
+                            t('search.auto_refresh') }}</span>
                     </label>
                     <button @click="fetchLogs"
                         class="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-all"
@@ -234,7 +244,7 @@
                     <div class="flex flex-col items-center">
                         <div class="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin">
                         </div>
-                        <p class="mt-4 text-gray-400 font-medium">Scanning clusters...</p>
+                        <p class="mt-4 text-gray-400 font-medium">{{ t('search.scanning') }}</p>
                     </div>
                 </div>
 
@@ -242,20 +252,20 @@
                     <thead class="sticky top-0 bg-gray-900/95 backdrop-blur-md shadow-sm z-20">
                         <tr>
                             <th
-                                class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                                Timestamp</th>
+                                class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                {{ t('table.timestamp') }}</th>
                             <th
-                                class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                                Level</th>
+                                class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                {{ t('table.level') }}</th>
                             <th
-                                class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                                Service</th>
+                                class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                {{ t('table.service') }}</th>
                             <th
-                                class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                                Host</th>
+                                class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                {{ t('table.host') }}</th>
                             <th
-                                class="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                                Message</th>
+                                class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                {{ t('table.message') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-800/50">
@@ -411,21 +421,21 @@
                         d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04M12 2.944v10.056m0 0a11.96 11.96 0 01-6.84 6.84m6.84-6.84a11.96 11.96 0 006.84 6.84">
                     </path>
                 </svg>
-                <p class="text-[11px] text-purple-400 font-medium tracking-wide">ADMIN CONSOLE MODE: Centralized
+                <p class="text-xs text-purple-400 font-medium tracking-wide">ADMIN CONSOLE MODE: Centralized
                     management and security policy control.</p>
             </div>
             <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-8 shrink-0">
-                <h2 class="text-xl font-bold text-white">Management Console</h2>
+                <h2 class="text-xl font-bold text-white">{{ t('common.admin_console') }}</h2>
                 <nav class="ml-12 flex space-x-8">
                     <button v-if="userRole === 'super_admin' || userRole === 'admin'" @click="settingsTab = 'users'"
                         :class="settingsTab === 'users' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-gray-200'"
-                        class="h-16 px-1 text-sm font-medium transition-all">Users</button>
+                        class="h-16 px-1 text-sm font-medium transition-all">{{ t('settings.tab_users') }}</button>
                     <button @click="settingsTab = 'tokens'"
                         :class="settingsTab === 'tokens' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-gray-200'"
-                        class="h-16 px-1 text-sm font-medium transition-all">API Keys</button>
+                        class="h-16 px-1 text-sm font-medium transition-all">{{ t('settings.tab_keys') }}</button>
                     <button @click="settingsTab = 'system'"
                         :class="settingsTab === 'system' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-gray-200'"
-                        class="h-16 px-1 text-sm font-medium transition-all">System</button>
+                        class="h-16 px-1 text-sm font-medium transition-all">{{ t('settings.tab_system') }}</button>
                 </nav>
             </header>
 
@@ -434,8 +444,8 @@
                 <div v-if="settingsTab === 'users'" class="max-w-4xl space-y-6">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-lg font-bold text-white">System Users</h3>
-                            <p class="text-sm text-gray-500 mt-1">Manage accounts and platform access levels.</p>
+                            <h3 class="text-lg font-bold text-white">{{ t('settings.users_title') }}</h3>
+                            <p class="text-sm text-gray-500 mt-1">{{ t('settings.users_desc') }}</p>
                         </div>
                         <button v-if="userRole === 'super_admin' || userRole === 'admin'"
                             @click="showAddUserModal = true"
@@ -444,7 +454,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 4v16m8-8H4"></path>
                             </svg>
-                            <span>Add User</span>
+                            <span>{{ t('settings.add_user') }}</span>
                         </button>
                     </div>
 
@@ -452,10 +462,10 @@
                         <table class="w-full text-left">
                             <thead class="bg-black/20 text-[10px] uppercase font-bold text-gray-500 tracking-widest">
                                 <tr>
-                                    <th class="px-6 py-4">Username</th>
-                                    <th class="px-6 py-4">Role</th>
-                                    <th class="px-6 py-4">Created At</th>
-                                    <th class="px-6 py-4 text-right">Actions</th>
+                                    <th class="px-6 py-4">{{ t('table.username') }}</th>
+                                    <th class="px-6 py-4">{{ t('table.role') }}</th>
+                                    <th class="px-6 py-4">{{ t('table.created_at') }}</th>
+                                    <th class="px-6 py-4 text-right">{{ t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-800">
@@ -464,8 +474,8 @@
                                     <td class="px-6 py-4">
                                         <span
                                             :class="user.role === 'super_admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'"
-                                            class="px-2 py-0.5 rounded border text-[10px] font-bold uppercase">{{
-                                            user.role }}</span>
+                                            class="px-2 py-0.5 rounded border text-xs font-bold uppercase">{{
+                                            t('roles.' + user.role) }}</span>
                                     </td>
                                     <td class="px-6 py-4 text-xs font-mono text-gray-500">{{
                                         formatTimestamp(user.created_at * 1000000000) }}</td>
@@ -503,9 +513,8 @@
                 <div v-if="settingsTab === 'tokens'" class="max-w-4xl space-y-6">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-lg font-bold text-white">API Keys</h3>
-                            <p class="text-sm text-gray-500 mt-1">Manage static tokens for SDKs and third-party
-                                integrations.</p>
+                            <h3 class="text-lg font-bold text-white">{{ t('settings.api_keys_title') }}</h3>
+                            <p class="text-sm text-gray-500 mt-1">{{ t('settings.api_keys_desc') }}</p>
                         </div>
                         <button @click="showAddTokenModal = true"
                             class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg shadow-cyan-500/10 flex items-center space-x-2">
@@ -513,7 +522,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 4v16m8-8H4"></path>
                             </svg>
-                            <span>Generate New Key</span>
+                            <span>{{ t('settings.add_key') }}</span>
                         </button>
                     </div>
 
@@ -521,11 +530,11 @@
                         <table class="w-full text-left">
                             <thead class="bg-black/20 text-[10px] uppercase font-bold text-gray-500 tracking-widest">
                                 <tr>
-                                    <th class="px-6 py-4">Name</th>
-                                    <th class="px-6 py-4">Prefix</th>
-                                    <th class="px-6 py-4">Type</th>
-                                    <th class="px-6 py-4">Created By</th>
-                                    <th class="px-6 py-4 text-right">Actions</th>
+                                    <th class="px-6 py-4">{{ t('table.name') }}</th>
+                                    <th class="px-6 py-4">{{ t('table.prefix') }}</th>
+                                    <th class="px-6 py-4">{{ t('table.type') }}</th>
+                                    <th class="px-6 py-4">{{ t('table.created_by') }}</th>
+                                    <th class="px-6 py-4 text-right">{{ t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-800">
@@ -534,7 +543,7 @@
                                     <td class="px-6 py-4 text-xs font-mono text-gray-500">sk-{{ token.id }}...</td>
                                     <td class="px-6 py-4">
                                         <span
-                                            class="bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded border border-gray-700 text-[10px] font-bold uppercase">{{
+                                            class="bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded border border-gray-700 text-xs font-bold uppercase">{{
                                             token.type }}</span>
                                     </td>
                                     <td class="px-6 py-4 text-xs text-gray-400">{{ token.created_by }}</td>
@@ -567,32 +576,33 @@
                 <!-- Tab: System -->
                 <div v-if="settingsTab === 'system'" class="max-w-2xl space-y-8">
                     <section class="space-y-4">
-                        <h3 class="text-lg font-bold text-white">General Information</h3>
+                        <h3 class="text-lg font-bold text-white">{{ t('settings.general_info') }}</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div class="bg-black/20 p-4 rounded-lg border border-gray-800">
-                                <p class="text-[10px] uppercase font-bold text-gray-500">Version</p>
-                                <p class="text-xl font-bold text-white mt-1">v0.3.0</p>
+                                <p class="text-xs uppercase font-bold text-gray-500">{{ t('settings.version') }}</p>
+                                <p class="text-xl font-bold text-white mt-1">{{ t('common.version') }}</p>
                             </div>
                             <div class="bg-black/20 p-4 rounded-lg border border-gray-800">
-                                <p class="text-[10px] uppercase font-bold text-gray-500">Current Storage</p>
+                                <p class="text-xs uppercase font-bold text-gray-500">{{ t('settings.storage') }}</p>
                                 <p class="text-xl font-bold text-white mt-1">{{ formatBytes(stats.disk_usage) }}</p>
                             </div>
                         </div>
                     </section>
 
                     <section class="space-y-4">
-                        <h3 class="text-lg font-bold text-white">Retention Policy</h3>
+                        <h3 class="text-lg font-bold text-white">{{ t('settings.retention_policy') }}</h3>
                         <div class="bg-black/20 p-6 rounded-xl border border-gray-800 space-y-4">
                             <div>
-                                <label class="text-xs font-bold text-gray-400 block mb-2">Maximum Log Retention</label>
+                                <label class="text-xs font-bold text-gray-400 block mb-2">{{ t('settings.max_retention')
+                                    }}</label>
                                 <div class="flex items-center space-x-4">
                                     <input type="text" v-model="retentionInput" placeholder="e.g. 168h, 7d"
                                         class="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
                                     <button @click="updateRetention"
-                                        class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-6 py-2.5 rounded-lg transition-all">Update</button>
+                                        class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-6 py-2.5 rounded-lg transition-all">{{
+                                        t('common.update') }}</button>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-2">Duration string (e.g. "72h" for 3 days). Data
-                                    exceeding this will be automatically purged.</p>
+                                <p class="text-xs text-gray-500 mt-2">{{ t('settings.retention_desc') }}</p>
                             </div>
                         </div>
                     </section>
@@ -605,34 +615,38 @@
         <div v-if="showAddUserModal"
             class="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
             <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-8 space-y-6 shadow-2xl">
-                <h3 class="text-xl font-bold text-white">Add Professional User</h3>
+                <h3 class="text-xl font-bold text-white">{{ t('modals.add_user_title') }}</h3>
                 <div class="space-y-4">
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-500 px-1">Username</label>
+                        <label class="text-xs uppercase font-bold text-gray-500 px-1">{{ t('table.username')
+                            }}</label>
                         <input type="text" v-model="newUser.username"
                             class="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
                     </div>
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-500 px-1">Password</label>
+                        <label class="text-xs uppercase font-bold text-gray-500 px-1">{{ t('auth.password')
+                            }}</label>
                         <input type="password" v-model="newUser.password"
                             class="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
                     </div>
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-500 px-1">Role</label>
+                        <label class="text-xs uppercase font-bold text-gray-500 px-1">{{ t('table.role') }}</label>
                         <select v-model="newUser.role"
                             class="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 appearance-none">
-                            <option v-if="userRole === 'super_admin'" value="admin">Admin</option>
-                            <option value="viewer">Viewer</option>
-                            <option v-if="userRole === 'super_admin'" value="super_admin">Super Admin</option>
+                            <option v-if="userRole === 'super_admin'" value="admin">{{ t('roles.admin') }}</option>
+                            <option value="viewer">{{ t('roles.viewer') }}</option>
+                            <option v-if="userRole === 'super_admin'" value="super_admin">{{ t('roles.super_admin') }}
+                            </option>
                         </select>
                     </div>
                 </div>
                 <div class="flex space-x-3 pt-4">
                     <button @click="showAddUserModal = false"
-                        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-2.5 rounded-xl transition-all">Cancel</button>
+                        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-2.5 rounded-xl transition-all">{{
+                        t('common.cancel') }}</button>
                     <button @click="addUser"
-                        class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl transition-all">Save
-                        Account</button>
+                        class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl transition-all">{{
+                        t('common.save') }}</button>
                 </div>
             </div>
         </div>
@@ -641,36 +655,40 @@
         <div v-if="showAddTokenModal"
             class="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
             <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-8 space-y-6 shadow-2xl">
-                <h3 class="text-xl font-bold text-white">Generate API Key</h3>
+                <h3 class="text-xl font-bold text-white">{{ t('modals.add_token_title') }}</h3>
                 <div class="space-y-4">
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-500 px-1">Token Name</label>
+                        <label class="text-xs uppercase font-bold text-gray-500 px-1">{{ t('modals.token_name')
+                            }}</label>
                         <input type="text" v-model="newToken.name" placeholder="e.g. My-Microservice-SDK"
                             class="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
                     </div>
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-500 px-1">Type</label>
+                        <label class="text-xs uppercase font-bold text-gray-500 px-1">{{ t('modals.token_type')
+                            }}</label>
                         <div class="grid grid-cols-2 gap-3">
                             <button @click="newToken.type = 'write'"
                                 :class="newToken.type === 'write' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-500 hover:border-gray-700'"
                                 class="px-4 py-3 rounded-xl border text-center transition-all">
-                                <div class="text-sm font-bold">Write</div>
-                                <div class="text-[10px] opacity-70">SDK Ingest</div>
+                                <div class="text-sm font-bold">{{ t('modals.permissions.write') }}</div>
+                                <div class="text-xs opacity-70">SDK Ingest</div>
                             </button>
                             <button @click="newToken.type = 'read'"
                                 :class="newToken.type === 'read' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-500 hover:border-gray-700'"
                                 class="px-4 py-3 rounded-xl border text-center transition-all">
-                                <div class="text-sm font-bold">Read</div>
-                                <div class="text-[10px] opacity-70">Analytics/Grafana</div>
+                                <div class="text-sm font-bold">{{ t('modals.permissions.read') }}</div>
+                                <div class="text-xs opacity-70">Analytics/Grafana</div>
                             </button>
                         </div>
                     </div>
                 </div>
                 <div class="flex space-x-3 pt-4">
                     <button @click="showAddTokenModal = false"
-                        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-2.5 rounded-xl transition-all">Cancel</button>
+                        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-2.5 rounded-xl transition-all">{{
+                        t('common.cancel') }}</button>
                     <button @click="generateToken"
-                        class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl transition-all">Generate</button>
+                        class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl transition-all">{{
+                        t('settings.add_key') }}</button>
                 </div>
             </div>
         </div>
@@ -682,12 +700,11 @@
                 class="w-full max-w-lg bg-gray-900 border border-cyan-500/50 rounded-2xl p-8 space-y-6 shadow-2xl relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-4">
                     <div
-                        class="text-[10px] font-bold text-cyan-500/50 uppercase tracking-widest border border-cyan-500/20 px-2 py-1 rounded">
-                        Security Alert</div>
+                        class="text-xs font-bold text-cyan-500/50 uppercase tracking-widest border border-cyan-500/20 px-2 py-1 rounded">
+                        {{ t('auth.security_badge') }}</div>
                 </div>
-                <h3 class="text-xl font-bold text-white">Token Generated Successfully</h3>
-                <p class="text-sm text-gray-400">Please copy your token now. It will not be shown again for security
-                    reasons.</p>
+                <h3 class="text-xl font-bold text-white">{{ t('modals.token_created_title') }}</h3>
+                <p class="text-sm text-gray-400">{{ t('modals.token_created_desc') }}</p>
 
                 <div
                     class="bg-black/50 border border-gray-800 rounded-xl p-4 font-mono text-cyan-400 text-sm break-all select-all flex items-center justify-between">
@@ -696,11 +713,11 @@
 
                 <div class="flex space-x-3 pt-2">
                     <button @click="copyGeneratedToken"
-                        class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all">Copy
-                        to Clipboard</button>
+                        class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all">{{
+                        t('common.copy') }}</button>
                     <button @click="generatedToken = null"
-                        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-3 rounded-xl transition-all">I've
-                        Saved It</button>
+                        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-3 rounded-xl transition-all">{{
+                        t('common.confirm') }}</button>
                 </div>
             </div>
         </div>
@@ -715,25 +732,26 @@
                         class="w-20 h-20 bg-gradient-to-tr from-cyan-600 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-cyan-500/20 mb-6">
                         <span class="text-white font-bold text-4xl">N</span>
                     </div>
-                    <h2 class="text-2xl font-black text-white tracking-tight">System Out-of-Box</h2>
-                    <p class="text-gray-500 text-sm mt-2 text-center">Take command of your cluster. Setup the primary
-                        Super Admin account to begin.</p>
+                    <h2 class="text-2xl font-black text-white tracking-tight">{{ t('init.title') }}</h2>
+                    <p class="text-gray-500 text-sm mt-2 text-center">{{ t('init.subtitle') }}</p>
                 </div>
 
                 <div class="space-y-4">
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-600 px-1">Admin Username</label>
+                        <label class="text-xs uppercase font-bold text-gray-600 px-1">{{ t('init.admin_username')
+                            }}</label>
                         <input type="text" v-model="initForm.username" placeholder="e.g. quantum-admin"
                             class="w-full bg-black/50 border border-gray-800 rounded-xl px-5 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
                     </div>
                     <div class="space-y-1">
-                        <label class="text-[10px] uppercase font-bold text-gray-600 px-1">Root Password</label>
+                        <label class="text-xs uppercase font-bold text-gray-600 px-1">{{ t('init.root_password')
+                            }}</label>
                         <input type="password" v-model="initForm.password"
                             class="w-full bg-black/50 border border-gray-800 rounded-xl px-5 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 font-mono">
                     </div>
                     <button @click="initializeSystem" :disabled="loading"
                         class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black py-4 rounded-xl shadow-lg shadow-cyan-500/20 transition-all transform active:scale-[0.98] disabled:opacity-50 mt-4">
-                        Initialize Cluster Core
+                        {{ t('init.submit') }}
                     </button>
                     <div v-if="error"
                         class="text-red-500 text-xs text-center font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20">
@@ -758,16 +776,16 @@
                             class="w-16 h-16 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-cyan-500/20 mb-4 transition-transform group-hover:scale-110">
                             <span class="text-white font-bold text-2xl">N</span>
                         </div>
-                        <h2 class="text-xl font-bold text-white tracking-tight">Security Required</h2>
-                        <p class="text-gray-500 text-sm mt-1 font-medium">Please enter your credentials</p>
+                        <h2 class="text-xl font-bold text-white tracking-tight">{{ t('auth.login_title') }}</h2>
+                        <p class="text-gray-500 text-sm mt-1 font-medium">{{ t('auth.login_subtitle') }}</p>
                     </div>
 
                     <div class="space-y-4">
                         <div class="space-y-2">
-                            <label
-                                class="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-1">Username</label>
+                            <label class="text-xs font-bold text-gray-600 uppercase tracking-widest px-1">{{
+                                t('auth.username') }}</label>
                             <div class="relative">
-                                <input type="text" v-model="loginForm.username" placeholder="admin"
+                                <input type="text" v-model="loginForm.username" :placeholder="t('auth.username')"
                                     class="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all">
                                 <svg class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700" fill="none"
                                     stroke="currentColor" viewBox="0 0 24 24">
@@ -778,11 +796,11 @@
                         </div>
 
                         <div class="space-y-2">
-                            <label
-                                class="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-1">Password</label>
+                            <label class="text-xs font-bold text-gray-600 uppercase tracking-widest px-1">{{
+                                t('auth.password') }}</label>
                             <div class="relative">
                                 <input type="password" v-model="loginForm.password" @keyup.enter="login"
-                                    placeholder="••••••••"
+                                    :placeholder="t('auth.password')"
                                     class="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-mono">
                                 <svg class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700" fill="none"
                                     stroke="currentColor" viewBox="0 0 24 24">
@@ -797,8 +815,8 @@
                             <label class="flex items-center space-x-2 cursor-pointer group">
                                 <input type="checkbox" v-model="loginForm.remember"
                                     class="w-4 h-4 rounded border-gray-800 bg-black/50 text-cyan-600 focus:ring-cyan-500/50 focus:ring-offset-0">
-                                <span class="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">Remember
-                                    Me</span>
+                                <span class="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">{{
+                                    t('auth.remember_me') }}</span>
                             </label>
                         </div>
 
@@ -812,9 +830,9 @@
                                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
                                     </path>
                                 </svg>
-                                Authenticating...
+                                {{ t('auth.authenticating') }}
                             </span>
-                            <span v-else>Unlock Dashboard</span>
+                            <span v-else>{{ t('auth.unlock_dashboard') }}</span>
                         </button>
 
                         <div v-if="error"
@@ -824,8 +842,8 @@
                     </div>
 
                     <div class="mt-8 text-center">
-                        <p class="text-[10px] text-gray-600 uppercase tracking-widest font-bold">NanoLog v0.4.0 Standard
-                            Security</p>
+                        <p class="text-xs text-gray-600 uppercase tracking-widest font-bold">{{
+                            t('auth.security_badge') }}</p>
                     </div>
                 </div>
             </div>
@@ -844,17 +862,17 @@
                         </svg>
                     </div>
                     <div>
-                        <h3 class="text-lg font-bold text-white">Confirm Logout</h3>
-                        <p class="text-sm text-gray-500 mt-1">Are you sure you want to log out of NanoLog?</p>
+                        <h3 class="text-lg font-bold text-white">{{ t('modals.confirm_logout_title') }}</h3>
+                        <p class="text-sm text-gray-500 mt-1">{{ t('modals.confirm_logout_msg') }}</p>
                     </div>
                     <div class="flex space-x-3 pt-2">
                         <button @click="cancelLogout"
                             class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">
-                            Cancel
+                            {{ t('common.cancel') }}
                         </button>
                         <button @click="confirmLogout"
                             class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors">
-                            Logout
+                            {{ t('nav.logout') }}
                         </button>
                     </div>
                 </div>
@@ -875,24 +893,24 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-white">Reset Password</h3>
+                            <h3 class="text-lg font-bold text-white">{{ t('modals.reset_pwd_title') }}</h3>
                             <p class="text-sm text-gray-500">{{ resetPasswordForm.username }}</p>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-400 mb-1.5">New Password</label>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">{{ t('modals.new_pwd') }}</label>
                         <input type="password" v-model="resetPasswordForm.password"
                             class="w-full bg-gray-800/50 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                            placeholder="Enter new password" />
+                            :placeholder="t('modals.new_pwd')" />
                     </div>
                     <div class="flex space-x-3 pt-2">
                         <button @click="showResetPasswordModal = false"
                             class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">
-                            Cancel
+                            {{ t('common.cancel') }}
                         </button>
                         <button @click="resetPassword"
                             class="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium rounded-lg transition-colors">
-                            Update Password
+                            {{ t('common.update') }}
                         </button>
                     </div>
                 </div>
@@ -920,11 +938,11 @@
                     <div class="flex space-x-3 pt-2">
                         <button @click="confirmModal.show = false"
                             class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">
-                            Cancel
+                            {{ t('common.cancel') }}
                         </button>
                         <button @click="confirmModal.action(); confirmModal.show = false"
                             class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-red-500/20">
-                            Confirm
+                            {{ t('common.confirm') }}
                         </button>
                     </div>
                 </div>
@@ -945,39 +963,76 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-white">Change Password</h3>
-                            <p class="text-sm text-gray-500">Update your account password</p>
+                            <div>
+                                <h3 class="text-lg font-bold text-white">{{ t('modals.change_pwd_title') }}</h3>
+                                <p class="text-sm text-gray-500">{{ t('modals.change_pwd_desc') }}</p>
+                            </div>
                         </div>
                     </div>
                     <div class="space-y-3">
                         <div>
-                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Current Password</label>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">{{ t('modals.current_pwd')
+                                }}</label>
                             <input type="password" v-model="changePasswordForm.currentPassword"
                                 class="w-full bg-gray-800/50 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                                placeholder="Enter current password" />
+                                :placeholder="t('modals.current_pwd')" />
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-400 mb-1.5">New Password</label>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">{{ t('modals.new_pwd')
+                                }}</label>
                             <input type="password" v-model="changePasswordForm.newPassword"
                                 class="w-full bg-gray-800/50 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                                placeholder="Enter new password" />
+                                :placeholder="t('modals.new_pwd')" />
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Confirm New Password</label>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">{{
+                                t('modals.confirm_new_pwd') }}</label>
                             <input type="password" v-model="changePasswordForm.confirmPassword"
                                 class="w-full bg-gray-800/50 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                                placeholder="Confirm new password" />
+                                :placeholder="t('modals.confirm_new_pwd')" />
                         </div>
                     </div>
                     <div class="flex space-x-3 pt-2">
                         <button
                             @click="showChangePasswordModal = false; changePasswordForm = { currentPassword: '', newPassword: '', confirmPassword: '' }"
                             class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">
-                            Cancel
+                            {{ t('common.cancel') }}
                         </button>
                         <button @click="changePassword"
                             class="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium rounded-lg transition-colors">
-                            Change Password
+                            {{ t('modals.change_pwd_title') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Language Switch Confirmation Modal -->
+        <div v-if="showLangConfirm"
+            class="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129">
+                                </path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white">{{ t('modals.switch_lang_title') }}</h3>
+                            <p class="text-sm text-gray-500 mt-1">{{ t('modals.switch_lang_msg') }}</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-3 pt-2">
+                        <button @click="showLangConfirm = false"
+                            class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                            {{ t('common.cancel') }}
+                        </button>
+                        <button @click="executeSwitchLanguage"
+                            class="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium rounded-lg transition-colors">
+                            {{ t('common.confirm') }}
                         </button>
                     </div>
                 </div>
@@ -1007,7 +1062,8 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.3"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/app.js?v=1.4"></script>
 </body>
 
 </html>

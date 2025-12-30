@@ -15,10 +15,45 @@ createApp({
         let refreshInterval = null;
         let statsInterval = null;
 
-        // Auth State
-        const isAuthenticated = ref(false);
+        // I18n State
+        const currentLang = ref(localStorage.getItem('nanolog_lang') || 'en');
+        const t = (path, params = {}) => {
+            const keys = path.split('.');
+            let obj = messages[currentLang.value];
+            for (const k of keys) {
+                if (!obj) return path;
+                obj = obj[k];
+            }
+            let str = obj || path;
+            if (typeof str === 'string') {
+                Object.keys(params).forEach(key => {
+                    str = str.replace(`{${key}}`, params[key]);
+                });
+            }
+            return str;
+        };
+        const setLang = (lang) => {
+            currentLang.value = lang;
+            localStorage.setItem('nanolog_lang', lang);
+        };
+        const pendingLang = ref('');
+        const showLangConfirm = ref(false);
+
+        const confirmSwitchLanguage = () => {
+            const target = currentLang.value === 'en' ? 'zh' : 'en';
+            pendingLang.value = target;
+            showLangConfirm.value = true;
+        };
+
+        const executeSwitchLanguage = () => {
+            setLang(pendingLang.value);
+            showLangConfirm.value = false;
+            window.location.reload(); // Reload to ensure full re-render
+        };
+
         const authToken = ref('');
-        const loginForm = ref({ username: 'admin', password: '', remember: true });
+        const isAuthenticated = ref(false);
+        const loginForm = ref({ username: '', password: '', remember: true });
         const userRole = ref('');
         const currentUser = ref('');
         const systemInitialized = ref(true);
@@ -91,7 +126,7 @@ createApp({
 
                 if (!response.ok) {
                     const txt = await response.text();
-                    throw new Error(txt || 'Invalid credentials');
+                    throw new Error(txt || t('alerts.invalid_credentials'));
                 }
 
                 const data = await response.json();
@@ -111,7 +146,7 @@ createApp({
                 fetchAll();
                 if (currentView.value === 'dashboard') initDashboard();
             } catch (e) {
-                error.value = e.message || "Login failed";
+                error.value = e.message || t('alerts.login_failed');
                 authToken.value = '';
             } finally {
                 loading.value = false;
@@ -346,7 +381,7 @@ createApp({
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ retention: retentionInput.value })
                 });
-                if (res.ok) alert("Retention policy updated. Will take effect on next restart.");
+                if (res.ok) alert(t('alerts.retention_updated'));
             } catch (e) { alert(e.message); }
         };
 
@@ -375,20 +410,20 @@ createApp({
 
         const deleteUser = async (username) => {
             triggerConfirm(
-                'Delete User',
-                `Are you sure you want to delete user "${username}"? This action cannot be undone.`,
+                t('modals.delete_user_title'),
+                t('modals.delete_user_msg', { name: username }),
                 async () => {
                     try {
                         const res = await apiFetch(`/api/users/${username}`, { method: 'DELETE' });
                         if (res.ok) {
-                            showToast(`User ${username} deleted`, 'success');
+                            showToast(t('alerts.user_deleted', { username }), 'success');
                             fetchUsers();
                         } else {
                             const txt = await res.text();
-                            showToast('Failed to delete: ' + txt, 'error');
+                            showToast(t('common.error') + ': ' + txt, 'error');
                         }
                     } catch (e) {
-                        showToast('Error: ' + e.message, 'error');
+                        showToast(t('common.error') + ': ' + e.message, 'error');
                     }
                 }
             );
@@ -401,7 +436,7 @@ createApp({
 
         const resetPassword = async () => {
             if (!resetPasswordForm.value.password) {
-                showToast('Please enter a new password', 'error');
+                showToast(t('alerts.enter_new_pwd'), 'error');
                 return;
             }
             try {
@@ -411,25 +446,25 @@ createApp({
                     body: JSON.stringify({ password: resetPasswordForm.value.password })
                 });
                 if (res.ok) {
-                    showToast('Password updated successfully!', 'success');
+                    showToast(t('alerts.pwd_updated'), 'success');
                     showResetPasswordModal.value = false;
                     resetPasswordForm.value = { username: '', password: '' };
                 } else {
                     const txt = await res.text();
-                    showToast('Failed: ' + txt, 'error');
+                    showToast(t('common.error') + ': ' + txt, 'error');
                 }
             } catch (e) {
-                showToast('Error: ' + e.message, 'error');
+                showToast(t('common.error') + ': ' + e.message, 'error');
             }
         };
 
         const changePassword = async () => {
             if (!changePasswordForm.value.currentPassword || !changePasswordForm.value.newPassword) {
-                showToast('Please fill in all fields', 'error');
+                showToast(t('alerts.fill_all_fields'), 'error');
                 return;
             }
             if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
-                showToast('New passwords do not match', 'error');
+                showToast(t('alerts.pwd_mismatch'), 'error');
                 return;
             }
             try {
@@ -442,15 +477,15 @@ createApp({
                     })
                 });
                 if (res.ok) {
-                    showToast('Password changed successfully!', 'success');
+                    showToast(t('alerts.pwd_updated'), 'success');
                     showChangePasswordModal.value = false;
                     changePasswordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
                 } else {
                     const txt = await res.text();
-                    showToast(txt || 'Failed to change password', 'error');
+                    showToast(txt || t('common.error'), 'error');
                 }
             } catch (e) {
-                showToast('Error: ' + e.message, 'error');
+                showToast(t('common.error') + ': ' + e.message, 'error');
             }
         };
 
@@ -478,26 +513,26 @@ createApp({
 
         const revokeToken = async (id) => {
             triggerConfirm(
-                'Revoke API Key',
-                'Are you sure you want to revoke this API Key? Machines using it will lose access immediately.',
+                t('modals.revoke_key_title'),
+                t('modals.revoke_key_msg'),
                 async () => {
                     try {
                         await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
-                        showToast('API Key revoked successfully', 'success');
+                        showToast(t('alerts.revoke_success'), 'success');
                         fetchTokens();
-                    } catch (e) { showToast('Failed to revoke token', 'error'); }
+                    } catch (e) { showToast(t('alerts.revoke_failed'), 'error'); }
                 }
             );
         };
 
         const copyGeneratedToken = () => {
             navigator.clipboard.writeText(generatedToken.value);
-            showToast('Token copied to clipboard!', 'success');
+            showToast(t('alerts.token_copied'), 'success');
         };
 
         const copyToken = (token) => {
             navigator.clipboard.writeText(token);
-            showToast('Token copied to clipboard!', 'success');
+            showToast(t('alerts.token_copied'), 'success');
         };
 
         const checkSystemStatus = async () => {
@@ -731,7 +766,11 @@ createApp({
             initForm, retentionInput, toast, showToast, showUserMenu, confirmModal, triggerConfirm,
             addUser, deleteUser, openResetPassword, resetPassword, showResetPasswordModal, resetPasswordForm,
             showChangePasswordModal, changePasswordForm, changePassword,
-            generateToken, revokeToken, copyGeneratedToken, copyToken, updateRetention, initializeSystem
+            showChangePasswordModal, changePasswordForm, changePassword,
+            showChangePasswordModal, changePasswordForm, changePassword,
+            generateToken, revokeToken, copyGeneratedToken, copyToken, updateRetention, initializeSystem,
+            currentLang, setLang, t,
+            showLangConfirm, pendingLang, confirmSwitchLanguage, executeSwitchLanguage
         };
     }
 }).mount('#app');
