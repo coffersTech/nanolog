@@ -235,3 +235,17 @@ func (s *Store) UpdateConfig(cfg Config) error {
 	s.data.Config = cfg
 	return s.saveLocked()
 }
+
+// UpdateUserPassword updates the password hash for a user.
+func (s *Store) UpdateUserPassword(username, passwordHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, u := range s.data.Users {
+		if u.Username == username {
+			s.data.Users[i].PasswordHash = passwordHash
+			return s.saveLocked()
+		}
+	}
+	return os.ErrNotExist
+}

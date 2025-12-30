@@ -97,6 +97,9 @@ func (s *IngestServer) RegisterConsoleRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/tokens", s.AuthMiddleware(http.HandlerFunc(s.handleTokens)))
 	mux.Handle("/api/tokens/", s.AuthMiddleware(http.HandlerFunc(s.handleTokenItem)))
 
+	// Profile (any authenticated user)
+	mux.Handle("/api/profile/password", s.AuthMiddleware(http.HandlerFunc(s.handleChangePassword)))
+
 	// Aggregated Search/Stats (Console specific)
 	mux.Handle("/api/search", s.AuthMiddleware(http.HandlerFunc(s.handleQuery)))
 	mux.Handle("/api/histogram", s.AuthMiddleware(http.HandlerFunc(s.handleHistogram)))
@@ -179,13 +182,16 @@ func (s *IngestServer) AuthMiddleware(next http.Handler) http.Handler {
 
 				// Role check for specific routes
 				if strings.HasPrefix(r.URL.Path, "/api/users") {
-					if user.Role != "super_admin" {
-						http.Error(w, "Forbidden: SuperAdmin required", http.StatusForbidden)
+					if user.Role != "super_admin" && user.Role != "admin" {
+						http.Error(w, "Forbidden: Admin or SuperAdmin required", http.StatusForbidden)
 						return
 					}
 				}
 
-				next.ServeHTTP(w, r)
+				// Add user role to context for downstream handlers
+				ctx := context.WithValue(r.Context(), "userRole", user.Role)
+				ctx = context.WithValue(ctx, "username", user.Username)
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 			s.sessionsMu.Lock()
@@ -351,6 +357,13 @@ func (s *IngestServer) handleUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Role-based permission check
+		callerRole, _ := r.Context().Value("userRole").(string)
+		if callerRole == "admin" && req.Role != "viewer" {
+			http.Error(w, "Forbidden: Admin can only create viewer users", http.StatusForbidden)
+			return
+		}
+
 		hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		err := s.metaStore.AddUser(controller.User{
 			Username:     req.Username,
@@ -371,7 +384,55 @@ func (s *IngestServer) handleUserItem(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	username := parts[len(parts)-1]
 
+	// PUT: Reset Password
+	if r.Method == http.MethodPut {
+		// Check if admin is trying to modify non-viewer user
+		callerRole, _ := r.Context().Value("userRole").(string)
+		if callerRole == "admin" {
+			targetUser, exists := s.metaStore.GetUser(username)
+			if exists && targetUser.Role != "viewer" {
+				http.Error(w, "Forbidden: Admin can only modify viewer users", http.StatusForbidden)
+				return
+			}
+		}
+
+		var req struct {
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Password == "" {
+			http.Error(w, "Password is required", http.StatusBadRequest)
+			return
+		}
+		hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+			return
+		}
+		if err := s.metaStore.UpdateUserPassword(username, string(hashed)); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Password updated successfully"})
+		return
+	}
+
+	// DELETE: Remove User
 	if r.Method == http.MethodDelete {
+		// Check if admin is trying to delete non-viewer user
+		callerRole, _ := r.Context().Value("userRole").(string)
+		if callerRole == "admin" {
+			targetUser, exists := s.metaStore.GetUser(username)
+			if exists && targetUser.Role != "viewer" {
+				http.Error(w, "Forbidden: Admin can only delete viewer users", http.StatusForbidden)
+				return
+			}
+		}
+
 		if err := s.metaStore.DeleteUser(username); err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -379,6 +440,61 @@ func (s *IngestServer) handleUserItem(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+// handleChangePassword allows any authenticated user to change their own password.
+func (s *IngestServer) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username, _ := r.Context().Value("username").(string)
+	if username == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.NewPassword == "" {
+		http.Error(w, "New password is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify current password
+	user, exists := s.metaStore.GetUser(username)
+	if !exists {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+
+	// Hash new password and update
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+		return
+	}
+	if err := s.metaStore.UpdateUserPassword(username, string(hashed)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Password changed successfully"})
 }
 
 func (s *IngestServer) handleTokens(w http.ResponseWriter, r *http.Request) {

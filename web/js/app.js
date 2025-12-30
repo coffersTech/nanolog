@@ -36,6 +36,20 @@ createApp({
         const initForm = ref({ username: '', password: '' });
         const retentionInput = ref('');
         const showLogoutConfirm = ref(false);
+        const showResetPasswordModal = ref(false);
+        const resetPasswordForm = ref({ username: '', password: '' });
+        const showChangePasswordModal = ref(false);
+        const changePasswordForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        const showUserMenu = ref(false);
+
+        // Toast notification
+        const toast = ref({ show: false, message: '', type: 'success' });
+        const showToast = (message, type = 'success') => {
+            toast.value = { show: true, message, type };
+            setTimeout(() => {
+                toast.value.show = false;
+            }, 3000);
+        };
 
         const apiFetch = async (url, options = {}) => {
             const headers = {
@@ -361,6 +375,66 @@ createApp({
             } catch (e) { }
         };
 
+        const openResetPassword = (username) => {
+            resetPasswordForm.value = { username, password: '' };
+            showResetPasswordModal.value = true;
+        };
+
+        const resetPassword = async () => {
+            if (!resetPasswordForm.value.password) {
+                showToast('Please enter a new password', 'error');
+                return;
+            }
+            try {
+                const res = await apiFetch(`/api/users/${resetPasswordForm.value.username}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: resetPasswordForm.value.password })
+                });
+                if (res.ok) {
+                    showToast('Password updated successfully!', 'success');
+                    showResetPasswordModal.value = false;
+                    resetPasswordForm.value = { username: '', password: '' };
+                } else {
+                    const txt = await res.text();
+                    showToast('Failed: ' + txt, 'error');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        };
+
+        const changePassword = async () => {
+            if (!changePasswordForm.value.currentPassword || !changePasswordForm.value.newPassword) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+            if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
+                showToast('New passwords do not match', 'error');
+                return;
+            }
+            try {
+                const res = await apiFetch('/api/profile/password', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: changePasswordForm.value.currentPassword,
+                        new_password: changePasswordForm.value.newPassword
+                    })
+                });
+                if (res.ok) {
+                    showToast('Password changed successfully!', 'success');
+                    showChangePasswordModal.value = false;
+                    changePasswordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
+                } else {
+                    const txt = await res.text();
+                    showToast(txt || 'Failed to change password', 'error');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        };
+
         const fetchTokens = async () => {
             try {
                 const res = await apiFetch('/api/tokens');
@@ -624,8 +698,10 @@ createApp({
             isAuthenticated, authToken, loginForm, login, logout, showLogoutConfirm, confirmLogout, cancelLogout,
             userRole, currentUser, systemInitialized, nodeRole, settingsTab,
             users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
-            initForm, retentionInput,
-            addUser, deleteUser, generateToken, revokeToken, copyGeneratedToken, updateRetention, initializeSystem
+            initForm, retentionInput, toast, showToast, showUserMenu,
+            addUser, deleteUser, openResetPassword, resetPassword, showResetPasswordModal, resetPasswordForm,
+            showChangePasswordModal, changePasswordForm, changePassword,
+            generateToken, revokeToken, copyGeneratedToken, updateRetention, initializeSystem
         };
     }
 }).mount('#app');
