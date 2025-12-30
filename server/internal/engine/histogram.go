@@ -66,12 +66,18 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 	}
 
 	for _, file := range files {
+		// File Pruning: Parse timestamps from filename (log_minTs_maxTs.nano)
+		minTs, maxTs, err := parseTsFromFilename(file)
+		if err == nil {
+			if start > 0 && maxTs < start {
+				continue // File is too old
+			}
+			if end > 0 && minTs > end {
+				continue // File is too new
+			}
+		}
+
 		// Read file with filter
-		// Optimization: We are reading full rows here which is inefficient (reads Msg column).
-		// But Reader interface `ReadSnapshot` currently returns []LogRow.
-		// To fix "Performance Key" requirement properly:
-		// We would need a new reader method `ReadTimestampOnly` or `ReadColumns(cols)`.
-		// Given current API limitation, we use existing readerFunc.
 		rows, err := qe.readerFunc(file, filter)
 		if err != nil {
 			continue

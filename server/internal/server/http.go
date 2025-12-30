@@ -754,12 +754,12 @@ func (s *IngestServer) handleHistogram(w http.ResponseWriter, r *http.Request) {
 
 	if startStr != "" {
 		if val, err := strconv.ParseInt(startStr, 10, 64); err == nil {
-			start = val * 1_000_000
+			start = val
 		}
 	}
 	if endStr != "" {
 		if val, err := strconv.ParseInt(endStr, 10, 64); err == nil {
-			end = val * 1_000_000
+			end = val
 		}
 	}
 	if intervalStr != "" {

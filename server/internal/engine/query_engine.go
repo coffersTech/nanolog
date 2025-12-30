@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -222,8 +223,6 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 		return result, err
 	}
 
-	// Sort files by name DESC (latest first)
-	// Filenames are log_minTs_maxTs.nano, sorting DESC puts larger timestamps first.
 	sort.Slice(files, func(i, j int) bool {
 		return files[i] > files[j]
 	})
@@ -231,6 +230,17 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 	for _, file := range files {
 		if len(result) >= limit {
 			break
+		}
+
+		// File Pruning: Parse timestamps from filename (log_minTs_maxTs.nano)
+		minTs, maxTs, err := parseTsFromFilename(file)
+		if err == nil {
+			if filter.MinTime > 0 && maxTs < filter.MinTime {
+				continue // File is too old
+			}
+			if filter.MaxTime > 0 && minTs > filter.MaxTime {
+				continue // File is too new
+			}
 		}
 
 		rows, err := qe.readerFunc(file, filter)
@@ -332,4 +342,22 @@ func (qe *QueryEngine) computeStatsFromRows(rows []LogRow) SystemStats {
 		s.TopServices[r.Service]++
 	}
 	return s
+}
+
+func parseTsFromFilename(filename string) (int64, int64, error) {
+	base := filepath.Base(filename)
+	if !strings.HasPrefix(base, "log_") || !strings.HasSuffix(base, ".nano") {
+		return 0, 0, fmt.Errorf("invalid format")
+	}
+	content := strings.TrimSuffix(strings.TrimPrefix(base, "log_"), ".nano")
+	parts := strings.Split(content, "_")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid parts")
+	}
+	minTs, err1 := strconv.ParseInt(parts[0], 10, 64)
+	maxTs, err2 := strconv.ParseInt(parts[1], 10, 64)
+	if err1 != nil || err2 != nil {
+		return 0, 0, fmt.Errorf("invalid timestamps")
+	}
+	return minTs, maxTs, nil
 }

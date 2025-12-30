@@ -190,30 +190,160 @@
                 <p class="text-xs text-blue-400 font-medium tracking-wide">{{ t('auth.engine_mode_desc') }}</p>
             </div>
             <!-- Top Header -->
-            <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8">
-                <div class="flex-1 max-w-2xl relative group">
-                    <input type="text" v-model="searchQuery" @keyup.enter="fetchLogs"
-                        :placeholder="t('search.placeholder')"
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-cyan-400 transition-colors"
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
+            <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-8 shrink-0 relative z-40">
+                <div class="flex items-center space-x-3 flex-1 max-w-3xl">
+                    <!-- Time Range Selector -->
+                    <div class="relative shrink-0">
+                        <button @click="showTimeRangeDropdown = !showTimeRangeDropdown"
+                            class="flex items-center space-x-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 hover:border-cyan-500/50 hover:bg-gray-800/80 transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/20 active:scale-95">
+                            <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span class="font-bold tracking-tight">{{ timeRangeLabel || t('search.last_15m') }}</span>
+                            <svg class="w-4 h-4 text-gray-500 transition-transform duration-300"
+                                :class="showTimeRangeDropdown ? 'rotate-180 text-cyan-400' : ''" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7">
+                                </path>
+                            </svg>
+                        </button>
+
+                        <!-- Dropdown Menu (Professional Redesign) -->
+                        <transition name="dropdown">
+                            <div v-if="showTimeRangeDropdown"
+                                class="absolute top-full left-0 mt-2 w-[540px] bg-gray-900/95 backdrop-blur-2xl border border-gray-700/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[100] overflow-hidden flex flex-col divide-y divide-gray-800/50 animate-in fade-in zoom-in duration-200">
+
+                                <!-- Header -->
+                                <div class="px-5 py-4 flex items-center justify-between">
+                                    <h3 class="text-sm font-bold text-white tracking-wide uppercase">{{
+                                        t('search.time_range') }}</h3>
+                                    <span
+                                        class="text-[10px] font-medium text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">{{
+                                        t('search.tz_local') }}</span>
+                                </div>
+
+                                <!-- Grid Presets -->
+                                <div class="px-5 py-4 grid grid-cols-5 gap-2">
+                                    <button
+                                        v-for="range in ['5m', '15m', '30m', '1h', '6h', '1d', '3d', '7d', '30d', '90d', 'today', 'yesterday', 'day_before_yesterday', 'this_week', 'last_week', 'this_month', 'last_month']"
+                                        :key="range" @click="updateTimeRange(range)"
+                                        class="px-2 py-2 text-[11px] font-bold rounded-lg border transition-all text-center tracking-tight"
+                                        :class="selectedTimeRange === range ? 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-600/20' : 'bg-gray-800/30 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-800'">
+                                        {{ t('search.' + range) }}
+                                    </button>
+                                </div>
+
+                                <!-- Custom Range Inputs Embedded -->
+                                <div class="px-4 py-5 bg-black/20 space-y-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="flex-1 space-y-1.5">
+                                            <label
+                                                class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">{{
+                                                t('search.start_time') }}</label>
+                                            <input type="datetime-local" v-model="customTimeRange.start"
+                                                class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all font-mono">
+                                        </div>
+                                        <div class="pt-5 text-gray-700">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                                            </svg>
+                                        </div>
+                                        <div class="flex-1 space-y-1.5">
+                                            <label
+                                                class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">{{
+                                                t('search.end_time') }}</label>
+                                            <input type="datetime-local" v-model="customTimeRange.end"
+                                                class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all font-mono">
+                                        </div>
+                                        <div class="pt-5">
+                                            <button @click="applyCustomTimeRange"
+                                                class="h-[38px] px-4 rounded-xl bg-cyan-600 text-white text-xs font-black hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-600/20 transform active:scale-95">
+                                                {{ t('common.confirm') }}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- History & Refresh Header Row -->
+                                    <div class="flex items-center justify-between pt-2 border-t border-gray-800/50">
+                                        <!-- Recent History Toggle -->
+                                        <button @click="showRecentHistory = !showRecentHistory"
+                                            class="flex items-center space-x-2 text-xs font-medium text-gray-400 hover:text-cyan-400 transition-colors group">
+                                            <span>{{ t('search.recent_custom') }}</span>
+                                            <svg class="w-3 h-3 transition-transform duration-300"
+                                                :class="showRecentHistory ? 'rotate-180' : ''" fill="none"
+                                                stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+
+                                        <!-- Auto Refresh Selector -->
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-xs font-medium text-gray-500 whitespace-nowrap">{{
+                                                t('search.page_auto_refresh') }}</span>
+                                            <div class="relative group/refresh">
+                                                <select v-model="autoRefresh"
+                                                    class="appearance-none bg-gray-950/50 border border-gray-800 rounded-lg px-3 py-1.5 pr-8 text-[11px] text-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all cursor-pointer hover:border-gray-700">
+                                                    <option :value="0">{{ t('search.refresh_off') }}</option>
+                                                    <option :value="15">{{ t('search.refresh_15s') }}</option>
+                                                    <option :value="60">{{ t('search.refresh_1m') }}</option>
+                                                    <option :value="300">{{ t('search.refresh_5m') }}</option>
+                                                    <option :value="600">{{ t('search.refresh_10m') }}</option>
+                                                    <option :value="1800">{{ t('search.refresh_30m') }}</option>
+                                                </select>
+                                                <div
+                                                    class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-600">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Expandable Recent History List -->
+                                    <div v-if="showRecentHistory"
+                                        class="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 custom-scrollbar animate-in slide-in-from-top-2 duration-200">
+                                        <div v-if="recentCustomRanges.length === 0"
+                                            class="text-[10px] text-gray-600 italic px-2 py-2">
+                                            No recent custom ranges found.
+                                        </div>
+                                        <button v-for="(r, idx) in recentCustomRanges" :key="idx"
+                                            @click="selectRecentCustom(r)"
+                                            class="w-full text-left px-3 py-2 rounded-lg bg-gray-950/30 border border-gray-800/50 hover:border-cyan-500/30 hover:bg-cyan-500/5 text-[11px] text-gray-400 hover:text-gray-200 transition-all font-mono group flex items-center justify-between">
+                                            <span>{{ r.start.replace('T', ' ') }} ~ {{ r.end.replace('T', ' ') }}</span>
+                                            <svg class="w-3 h-3 text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M5 13l4 4L19 7"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </transition>
+                    </div>
+
+                    <div class="relative flex-1 group">
+                        <input type="text" v-model="searchQuery" @keyup.enter="fetchLogs"
+                            :placeholder="t('search.placeholder')"
+                            class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all group-hover:border-gray-600">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-cyan-400 transition-colors"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
                 </div>
+
 
                 <div class="flex items-center space-x-6 ml-6">
 
-                    <label class="flex items-center space-x-3 cursor-pointer group">
-                        <div class="relative">
-                            <input type="checkbox" v-model="autoRefresh" class="sr-only peer">
-                            <div
-                                class="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600">
-                            </div>
-                        </div>
-                        <span class="text-sm font-medium text-gray-400 group-hover:text-gray-200 transition-colors">{{
-                            t('search.auto_refresh') }}</span>
-                    </label>
                     <button @click="fetchLogs"
                         class="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-all"
                         title="Manual Refresh">

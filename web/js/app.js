@@ -8,7 +8,8 @@ createApp({
         const loading = ref(false);
         const error = ref(null);
         const searchQuery = ref('');
-        const autoRefresh = ref(false);
+        const autoRefresh = ref(0);
+        const showRecentHistory = ref(false);
         const expandedIndex = ref(-1);
         const currentView = ref('discover');
         const stats = ref({ ingestion_rate: 0, disk_usage: 0, total_logs: 0 });
@@ -76,6 +77,13 @@ createApp({
         const showChangePasswordModal = ref(false);
         const changePasswordForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
         const showUserMenu = ref(false);
+        const selectedTimeRange = ref('15m');
+        const showTimeRangeDropdown = ref(false);
+        const showCustomTimeModal = ref(false);
+        const customTimeRange = ref({ start: '', end: '' });
+        const recentCustomRanges = ref(JSON.parse(localStorage.getItem('recentCustomRanges') || '[]'));
+        const timeParams = ref({ start: null, end: null });
+        const timeRangeLabel = ref('');
 
         // Confirmation Modal
         const confirmModal = ref({ show: false, title: '', message: '', action: null });
@@ -91,6 +99,19 @@ createApp({
                 toast.value.show = false;
             }, 3000);
         };
+
+        watch(showTimeRangeDropdown, (open) => {
+            if (open && timeParams.value.start && timeParams.value.end) {
+                // Sync inputs with current range when opening
+                const formatDate = (ts) => {
+                    const d = new Date(ts / 1000000);
+                    const pad = (n) => String(n).padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                };
+                customTimeRange.value.start = formatDate(timeParams.value.start);
+                customTimeRange.value.end = formatDate(timeParams.value.end);
+            }
+        });
 
         const apiFetch = async (url, options = {}) => {
             const headers = {
@@ -210,8 +231,137 @@ createApp({
             if (textSearch.length > 0) {
                 params.append('q', textSearch.join(' '));
             }
+
+            if (timeParams.value.start) params.append('start', timeParams.value.start);
+            if (timeParams.value.end) params.append('end', timeParams.value.end);
+
             return params.toString();
         };
+
+        const updateTimeRange = (range) => {
+            selectedTimeRange.value = range;
+            const now = new Date();
+            const nowTs = now.getTime();
+            let start = null;
+            let end = nowTs * 1000000;
+
+            const t_key = range.startsWith('last_') ? range : (range === 'custom' ? 'custom' : 'search.' + range);
+
+            // Helper to get start of day
+            const getStartOfDay = (d) => {
+                const day = new Date(d);
+                day.setHours(0, 0, 0, 0);
+                return day;
+            };
+
+            if (range === '5m') start = (nowTs - 5 * 60 * 1000) * 1000000;
+            else if (range === '15m') start = (nowTs - 15 * 60 * 1000) * 1000000;
+            else if (range === '30m') start = (nowTs - 30 * 60 * 1000) * 1000000;
+            else if (range === '1h') start = (nowTs - 60 * 60 * 1000) * 1000000;
+            else if (range === '6h') start = (nowTs - 6 * 60 * 60 * 1000) * 1000000;
+            else if (range === '24h' || range === '1d') start = (nowTs - 24 * 60 * 60 * 1000) * 1000000;
+            else if (range === '3d') start = (nowTs - 3 * 24 * 60 * 60 * 1000) * 1000000;
+            else if (range === '7d') start = (nowTs - 7 * 24 * 60 * 60 * 1000) * 1000000;
+            else if (range === '30d') start = (nowTs - 30 * 24 * 60 * 60 * 1000) * 1000000;
+            else if (range === '90d') start = (nowTs - 90 * 24 * 60 * 60 * 1000) * 1000000;
+            else if (range === 'today') {
+                start = getStartOfDay(now).getTime() * 1000000;
+            } else if (range === 'yesterday') {
+                const y = getStartOfDay(now);
+                y.setDate(y.getDate() - 1);
+                start = y.getTime() * 1000000;
+                const ye = new Date(y);
+                ye.setHours(23, 59, 59, 999);
+                end = ye.getTime() * 1000000;
+            } else if (range === 'day_before_yesterday') {
+                const d = getStartOfDay(now);
+                d.setDate(d.getDate() - 2);
+                start = d.getTime() * 1000000;
+                const de = new Date(d);
+                de.setHours(23, 59, 59, 999);
+                end = de.getTime() * 1000000;
+            } else if (range === 'this_week') {
+                const d = getStartOfDay(now);
+                const day = d.getDay() || 7; // 1-7, 7 is Sunday
+                d.setDate(d.getDate() - day + 1);
+                start = d.getTime() * 1000000;
+            } else if (range === 'last_week') {
+                const d = getStartOfDay(now);
+                const day = d.getDay() || 7;
+                d.setDate(d.getDate() - day - 6); // Previous Monday
+                start = d.getTime() * 1000000;
+                const de = new Date(d);
+                de.setDate(de.getDate() + 6);
+                de.setHours(23, 59, 59, 999);
+                end = de.getTime() * 1000000;
+            } else if (range === 'this_month') {
+                const d = getStartOfDay(now);
+                d.setDate(1);
+                start = d.getTime() * 1000000;
+            } else if (range === 'last_month') {
+                const d = getStartOfDay(now);
+                d.setMonth(d.getMonth() - 1);
+                d.setDate(1);
+                start = d.getTime() * 1000000;
+                const de = new Date(d);
+                de.setMonth(de.getMonth() + 1);
+                de.setDate(0); // Last day of previous month
+                de.setHours(23, 59, 59, 999);
+                end = de.getTime() * 1000000;
+            } else if (range === 'custom') {
+                // For custom, we don't fetch yet, just show inputs
+                return;
+            }
+
+            timeParams.value = { start, end };
+            if (range === 'custom') {
+                timeRangeLabel.value = t('search.custom');
+            } else {
+                timeRangeLabel.value = t('search.' + range) || range;
+            }
+            showTimeRangeDropdown.value = false; // Close for presets
+            fetchAll();
+        };
+
+        const applyCustomTimeRange = () => {
+            if (!customTimeRange.value.start || !customTimeRange.value.end) return;
+            const startStr = customTimeRange.value.start;
+            const endStr = customTimeRange.value.end;
+            const start = new Date(startStr).getTime() * 1000000;
+            const end = new Date(endStr).getTime() * 1000000;
+
+            if (end <= start) {
+                showToast(t('alerts.invalid_time_range'), 'error');
+                return;
+            }
+
+            timeParams.value = { start, end };
+            selectedTimeRange.value = 'custom';
+
+            // Format label as date range
+            const d1 = new Date(start / 1000000);
+            const d2 = new Date(end / 1000000);
+            const fmtStr = (d) => `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            timeRangeLabel.value = `${fmtStr(d1)} ~ ${fmtStr(d2)}`;
+
+            // Save to recent
+            const newRange = { start: startStr, end: endStr, label: timeRangeLabel.value };
+            recentCustomRanges.value = [newRange, ...recentCustomRanges.value.filter(r => r.start !== newRange.start || r.end !== newRange.end)].slice(0, 3);
+            localStorage.setItem('recentCustomRanges', JSON.stringify(recentCustomRanges.value));
+
+            showTimeRangeDropdown.value = false;
+            fetchAll();
+        };
+
+        const selectRecentCustom = (recent) => {
+            customTimeRange.value.start = recent.start;
+            customTimeRange.value.end = recent.end;
+            applyCustomTimeRange();
+        };
+
+
+        // Initialize default time range
+        setTimeout(() => updateTimeRange('15m'), 100);
 
         const fetchLogs = async () => {
             if (!isAuthenticated.value) return;
@@ -315,7 +465,7 @@ createApp({
                             callbacks: {
                                 title: (items) => {
                                     if (items.length > 0) {
-                                        const d = new Date(parseInt(items[0].label));
+                                        const d = new Date(parseInt(items[0].label) / 1000000);
                                         return d.toLocaleTimeString();
                                     }
                                 }
@@ -330,19 +480,28 @@ createApp({
             if (!isAuthenticated.value) return;
             try {
                 let qs = parseSearchQuery(searchQuery.value);
-                // Ensure interval is set (default 60s if not)
-                // This logic could be improved to dynamic interval based on time range
-                if (!qs.includes('interval=')) qs += '&interval=60';
+
+                // Dynamic interval calculation: Aim for ~60 points
+                if (!qs.includes('interval=')) {
+                    let durationSec = 15 * 60; // Default 15m
+                    if (timeParams.value.start && timeParams.value.end) {
+                        durationSec = (timeParams.value.end - timeParams.value.start) / 1000000000;
+                    }
+
+                    let interval = Math.max(1, Math.floor(durationSec / 60));
+                    // Snap to sensible intervals
+                    if (interval > 3600) interval = Math.max(3600, Math.floor(interval / 3600) * 3600);
+                    else if (interval > 60) interval = Math.max(60, Math.floor(interval / 60) * 60);
+
+                    qs += `&interval=${interval}`;
+                }
 
                 const res = await apiFetch(`/api/histogram?${qs}`);
                 const data = await res.json();
 
                 if (chartInstance) {
                     if (data && data.length > 0) {
-                        chartInstance.data.labels = data.map(p => {
-                            const d = new Date(p.time / 1000000);
-                            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-                        });
+                        chartInstance.data.labels = data.map(p => p.time);
                         chartInstance.data.datasets[0].data = data.map(p => p.count);
                     } else {
                         chartInstance.data.labels = [];
@@ -356,8 +515,10 @@ createApp({
         };
 
         watch(autoRefresh, (v) => {
-            if (v && isAuthenticated.value) refreshInterval = setInterval(() => { fetchLogs(); fetchHistogram(); }, 2000); // Update both
-            else if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+            if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+            if (v > 0 && isAuthenticated.value) {
+                refreshInterval = setInterval(() => { fetchLogs(); fetchHistogram(); }, v * 1000);
+            }
         });
 
         const fetchAll = () => {
@@ -767,10 +928,13 @@ createApp({
             addUser, deleteUser, openResetPassword, resetPassword, showResetPasswordModal, resetPasswordForm,
             showChangePasswordModal, changePasswordForm, changePassword,
             showChangePasswordModal, changePasswordForm, changePassword,
-            showChangePasswordModal, changePasswordForm, changePassword,
             generateToken, revokeToken, copyGeneratedToken, copyToken, updateRetention, initializeSystem,
             currentLang, setLang, t,
-            showLangConfirm, pendingLang, confirmSwitchLanguage, executeSwitchLanguage
+            showLangConfirm, pendingLang, confirmSwitchLanguage, executeSwitchLanguage,
+            selectedTimeRange, showTimeRangeDropdown, customTimeRange,
+            recentCustomRanges, timeParams, timeRangeLabel,
+            updateTimeRange, applyCustomTimeRange, selectRecentCustom,
+            showRecentHistory
         };
     }
 }).mount('#app');
