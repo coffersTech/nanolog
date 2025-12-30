@@ -42,6 +42,12 @@ createApp({
         const changePasswordForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
         const showUserMenu = ref(false);
 
+        // Confirmation Modal
+        const confirmModal = ref({ show: false, title: '', message: '', action: null });
+        const triggerConfirm = (title, message, action) => {
+            confirmModal.value = { show: true, title, message, action };
+        };
+
         // Toast notification
         const toast = ref({ show: false, message: '', type: 'success' });
         const showToast = (message, type = 'success') => {
@@ -368,11 +374,24 @@ createApp({
         };
 
         const deleteUser = async (username) => {
-            if (!confirm(`Delete user ${username}?`)) return;
-            try {
-                const res = await apiFetch(`/api/users/${username}`, { method: 'DELETE' });
-                if (res.ok) fetchUsers();
-            } catch (e) { }
+            triggerConfirm(
+                'Delete User',
+                `Are you sure you want to delete user "${username}"? This action cannot be undone.`,
+                async () => {
+                    try {
+                        const res = await apiFetch(`/api/users/${username}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            showToast(`User ${username} deleted`, 'success');
+                            fetchUsers();
+                        } else {
+                            const txt = await res.text();
+                            showToast('Failed to delete: ' + txt, 'error');
+                        }
+                    } catch (e) {
+                        showToast('Error: ' + e.message, 'error');
+                    }
+                }
+            );
         };
 
         const openResetPassword = (username) => {
@@ -454,20 +473,31 @@ createApp({
                 showAddTokenModal.value = false;
                 newToken.value = { name: '', type: 'write' };
                 fetchTokens();
-            } catch (e) { alert(e.message); }
+            } catch (e) { showToast(e.message, 'error'); }
         };
 
         const revokeToken = async (id) => {
-            if (!confirm('Revoke this API Key? Machines using it will lose access immediately.')) return;
-            try {
-                await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
-                fetchTokens();
-            } catch (e) { }
+            triggerConfirm(
+                'Revoke API Key',
+                'Are you sure you want to revoke this API Key? Machines using it will lose access immediately.',
+                async () => {
+                    try {
+                        await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
+                        showToast('API Key revoked successfully', 'success');
+                        fetchTokens();
+                    } catch (e) { showToast('Failed to revoke token', 'error'); }
+                }
+            );
         };
 
         const copyGeneratedToken = () => {
             navigator.clipboard.writeText(generatedToken.value);
-            alert("Token copied to clipboard!");
+            showToast('Token copied to clipboard!', 'success');
+        };
+
+        const copyToken = (token) => {
+            navigator.clipboard.writeText(token);
+            showToast('Token copied to clipboard!', 'success');
         };
 
         const checkSystemStatus = async () => {
@@ -698,10 +728,10 @@ createApp({
             isAuthenticated, authToken, loginForm, login, logout, showLogoutConfirm, confirmLogout, cancelLogout,
             userRole, currentUser, systemInitialized, nodeRole, settingsTab,
             users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
-            initForm, retentionInput, toast, showToast, showUserMenu,
+            initForm, retentionInput, toast, showToast, showUserMenu, confirmModal, triggerConfirm,
             addUser, deleteUser, openResetPassword, resetPassword, showResetPasswordModal, resetPasswordForm,
             showChangePasswordModal, changePasswordForm, changePassword,
-            generateToken, revokeToken, copyGeneratedToken, updateRetention, initializeSystem
+            generateToken, revokeToken, copyGeneratedToken, copyToken, updateRetention, initializeSystem
         };
     }
 }).mount('#app');
