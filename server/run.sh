@@ -39,6 +39,24 @@ case "$ACTION" in
         go build -o bin/nanolog cmd/nanolog/main.go
         ./bin/nanolog $ARGS
         ;;
+    standalone)
+        echo -e "${YELLOW}Starting Standalone Mode (Full Functionality)...${NC}"
+        go build -o bin/nanolog cmd/nanolog/main.go
+        ./bin/nanolog --role=standalone $ARGS
+        ;;
+    console)
+        echo -e "${YELLOW}Starting Console Mode (Management & Query Aggregation)...${NC}"
+        if [[ -z "$DATA_NODES" ]]; then
+            echo -e "${YELLOW}Tip: Set DATA_NODES env or pass --data-nodes to specify ingester nodes.${NC}"
+        fi
+        go build -o bin/nanolog cmd/nanolog/main.go
+        ./bin/nanolog --role=console $ARGS
+        ;;
+    ingester)
+        echo -e "${YELLOW}Starting Ingester Mode (Storage & Local Query)...${NC}"
+        go build -o bin/nanolog cmd/nanolog/main.go
+        ./bin/nanolog --role=ingester $ARGS
+        ;;
     test)
         echo -e "${YELLOW}Running tests...${NC}"
         go test ./... -v
@@ -49,14 +67,22 @@ case "$ACTION" in
         echo -e "${GREEN}Done${NC}"
         ;;
     *)
-        echo "Usage: $0 {build|run|start|test|tidy}"
+        echo "Usage: $0 {build|run|start|standalone|console|ingester|test|tidy} [options]"
         echo ""
         echo "Commands:"
-        echo "  build  - Compile to bin/nanolog"
-        echo "  run    - Run in development mode (default)"
-        echo "  start  - Build and run"
-        echo "  test   - Run all tests"
-        echo "  tidy   - Run go mod tidy"
+        echo "  build      - Compile to bin/nanolog"
+        echo "  run        - Run in development mode (default)"
+        echo "  start      - Build and run with custom args"
+        echo "  standalone - Start in full standalone mode"
+        echo "  console    - Start as Console node (needs --data-nodes)"
+        echo "  ingester   - Start as Ingester node"
+        echo "  test       - Run all tests"
+        echo "  tidy       - Run go mod tidy"
+        echo ""
+        echo "Examples:"
+        echo "  $0 standalone --port 8080"
+        echo "  $0 console --data-nodes=http://node1:8081,http://node2:8081"
+        echo "  $0 ingester --port 8081"
         exit 1
         ;;
 esac

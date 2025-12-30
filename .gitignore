@@ -29,6 +29,8 @@ Thumbs.db
 
 # NanoLog data files (generated at runtime)
 /data/
+/data*/
+/*test*/
 *.nano
 
 # Logs

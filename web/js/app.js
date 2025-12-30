@@ -22,6 +22,7 @@ createApp({
         const userRole = ref('');
         const currentUser = ref('');
         const systemInitialized = ref(true);
+        const nodeRole = ref('all');
 
         // Management State
         const settingsTab = ref('tokens');
@@ -386,9 +387,21 @@ createApp({
         };
 
         const checkSystemStatus = async () => {
-            const res = await fetch('/api/system/status');
-            const data = await res.json();
-            systemInitialized.value = data.initialized;
+            try {
+                const res = await fetch('/api/system/status');
+                const data = await res.json();
+                systemInitialized.value = data.initialized;
+                nodeRole.value = data.node_role || 'all';
+
+                // Initial view adjustment
+                if (nodeRole.value === 'admin' && currentView.value !== 'settings') {
+                    currentView.value = 'settings';
+                } else if (nodeRole.value === 'engine' && currentView.value === 'settings') {
+                    currentView.value = 'discover';
+                }
+            } catch (e) {
+                console.error("Failed to check system status", e);
+            }
         };
 
         const initializeSystem = async () => {
@@ -407,6 +420,7 @@ createApp({
                 currentUser.value = data.username;
                 isAuthenticated.value = true;
                 systemInitialized.value = true;
+                nodeRole.value = data.node_role || nodeRole.value;
                 localStorage.setItem(STORAGE_KEY, data.token);
                 localStorage.setItem('nanolog_role', data.role);
                 localStorage.setItem('nanolog_user', data.username);
@@ -598,7 +612,7 @@ createApp({
             toggleRow, isJson, formatJson, formatBytes, formatNumber,
             fetchLogs: fetchAll, formatTimestamp, getLevelText, getLevelClass,
             isAuthenticated, authToken, loginForm, login, logout,
-            userRole, currentUser, systemInitialized, settingsTab,
+            userRole, currentUser, systemInitialized, nodeRole, settingsTab,
             users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
             initForm, retentionInput,
             addUser, deleteUser, generateToken, revokeToken, copyGeneratedToken, updateRetention, initializeSystem

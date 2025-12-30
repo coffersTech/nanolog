@@ -1,0 +1,94 @@
+# docker-compose-distributed.yml
+#
+# NanoLog 分布式读写分离架构演示
+# ================================
+# 本配置演示一个完整的 Console + 双 Ingester + Nginx LB 的部署方案。
+#
+# 启动: docker-compose -f docker-compose-distributed.yml up -d
+#
+# 端口分配:
+#   - 8000: Web Console (管理界面、聚合查询)
+#   - 8088: Nginx LB (SDK 写入统一入口)
+#   - 8081/8082: Ingester 内部端口 (可直连调试)
+
+version: '3.8'
+
+services:
+  # ====================
+  # 1. Console (管理与查询中心)
+  # ====================
+  nanolog-console:
+    build: .
+    image: coffersTech/nanolog:latest
+    container_name: nanolog-console
+    command: [ "--role=console", "--data-nodes=http://ingester-1:8080,http://ingester-2:8080" ]
+    ports:
+      - "8000:8080"
+    environment:
+      - NANOLOG_MASTER_KEY=shared-secret-key-change-in-production
+    volumes:
+      - ./meta_data:/root/data
+    networks:
+      - nanolog-net
+    restart: unless-stopped
+
+  # ====================
+  # 2. Ingester 1 (数据节点 A)
+  # ====================
+  ingester-1:
+    build: .
+    image: coffersTech/nanolog:latest
+    container_name: ingester-1
+    command: [ "--role=ingester" ]
+    ports:
+      - "8081:8080"
+    environment:
+      - NANOLOG_MASTER_KEY=shared-secret-key-change-in-production
+    volumes:
+      - ./data_1:/root/data
+    depends_on:
+      - nanolog-console
+    networks:
+      - nanolog-net
+    restart: unless-stopped
+
+  # ====================
+  # 3. Ingester 2 (数据节点 B)
+  # ====================
+  ingester-2:
+    build: .
+    image: coffersTech/nanolog:latest
+    container_name: ingester-2
+    command: [ "--role=ingester" ]
+    ports:
+      - "8082:8080"
+    environment:
+      - NANOLOG_MASTER_KEY=shared-secret-key-change-in-production
+    volumes:
+      - ./data_2:/root/data
+    depends_on:
+      - nanolog-console
+    networks:
+      - nanolog-net
+    restart: unless-stopped
+
+  # ====================
+  # 4. Nginx LB (SDK 写入负载均衡)
+  # ====================
+  nginx-lb:
+    image: nginx:alpine
+    container_name: nginx-lb
+    ports:
+      - "8088:80"
+    volumes:
+      - ./nginx-dist.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - ingester-1
+      - ingester-2
+    networks:
+      - nanolog-net
+    restart: unless-stopped
+
+networks:
+  nanolog-net:
+    driver: bridge

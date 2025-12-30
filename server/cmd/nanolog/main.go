@@ -7,9 +7,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/coffersTech/nanolog/server/internal/cluster"
 	"github.com/coffersTech/nanolog/server/internal/controller"
 	"github.com/coffersTech/nanolog/server/internal/engine"
 	"github.com/coffersTech/nanolog/server/internal/pkg/security"
@@ -23,68 +25,107 @@ func main() {
 	retentionStr := flag.String("retention", "168h", "Data retention duration (e.g. 72h, 7d)")
 	dataDir := flag.String("data", "../data", "Directory to store .nano files")
 	webDir := flag.String("web", "../web", "Directory for static web files")
-	keyPath := flag.String("key", "", "Path to the master key file (defaults to <data>/nanolog.key)")
+	keyPath := flag.String("key", "", "Path to the master key file (defaults to <data>/.nanolog.key)")
+	role := flag.String("role", "standalone", "Server role: standalone, console, ingester")
+	dataNodes := flag.String("data-nodes", "", "Comma-separated list of data node URLs (for console role)")
+	adminAddr := flag.String("admin-addr", "localhost:8080", "Upstream admin address (for ingester nodes)")
 	flag.Parse()
 
 	// Parse retention duration
 	retention, err := time.ParseDuration(*retentionStr)
-	// 0. Initialize Security Layer
-	realKeyPath := *keyPath
-	if realKeyPath == "" {
-		realKeyPath = fmt.Sprintf("%s/.nanolog.key", *dataDir)
-	}
-
-	generated, err := security.InitMasterKey(realKeyPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize security layer: %v", err)
+		log.Fatalf("Invalid retention duration: %v", err)
 	}
 
-	if generated {
-		fmt.Println("┌────────────────────────────────────────────────────────────────────────┐")
-		fmt.Println("│                                WARNING                                 │")
-		fmt.Println("├────────────────────────────────────────────────────────────────────────┤")
-		fmt.Printf("│ A new Master Key has been generated at %-31s │\n", realKeyPath)
-		fmt.Println("│ Please back up this file! Without it, you cannot recover your data.    │")
-		fmt.Println("└────────────────────────────────────────────────────────────────────────┘")
+	var dataNodeList []string
+	if *dataNodes != "" {
+		dataNodeList = strings.Split(*dataNodes, ",")
+		for i := range dataNodeList {
+			dataNodeList[i] = strings.TrimSpace(dataNodeList[i])
+		}
 	}
 
-	log.Println("NanoLog Kernel v0.1 Started...")
+	var metaStore *controller.Store
+	var qe *engine.QueryEngine
 
-	// 1. Initialize global MemTable
-	mt := engine.NewMemTable()
-	mt.StartStatsTicker(1 * time.Second)
-	log.Printf("MemTable initialized. Capacity: %d rows", 4096)
+	// 0. Initialize Security & Metadata (Standalone or Console)
+	if *role == "standalone" || *role == "console" {
+		realKeyPath := *keyPath
+		if realKeyPath == "" {
+			realKeyPath = fmt.Sprintf("%s/.nanolog.key", *dataDir)
+		}
 
-	// 2. Initialize QueryEngine with retention
-	reader, err := storage.NewColumnReader()
-	if err != nil {
-		log.Fatalf("Failed to create reader: %v", err)
+		generated, err := security.InitMasterKey(realKeyPath)
+		if err != nil {
+			log.Fatalf("Failed to initialize security layer: %v", err)
+		}
+
+		if generated {
+			fmt.Println("┌────────────────────────────────────────────────────────────────────────┐")
+			fmt.Println("│                                WARNING                                 │")
+			fmt.Println("├────────────────────────────────────────────────────────────────────────┤")
+			fmt.Printf("│ A new Master Key has been generated at %-31s │\n", realKeyPath)
+			fmt.Println("│ Please back up this file! Without it, you cannot recover your data.    │")
+			fmt.Println("└────────────────────────────────────────────────────────────────────────┘")
+		}
+
+		// Initialize Metadata Store
+		metaStore = controller.NewStore(fmt.Sprintf("%s/.nanolog.sys", *dataDir))
+		if err := metaStore.Load(); err != nil {
+			log.Fatalf("Failed to load systems metadata: %v", err)
+		}
+
+		if *role == "console" {
+			log.Println("NanoLog Console Node Started (Management & Query Aggregation)")
+		} else {
+			log.Println("NanoLog Standalone Node Started")
+		}
 	}
-	writer, err := storage.NewColumnWriter()
-	if err != nil {
-		log.Fatalf("Failed to create writer: %v", err)
+
+	// 1. Initialize Engine (Standalone or Ingester)
+	if *role == "standalone" || *role == "ingester" {
+		// Initialize global MemTable
+		mt := engine.NewMemTable()
+		mt.StartStatsTicker(1 * time.Second)
+		log.Printf("MemTable initialized. Capacity: %d rows", 4096)
+
+		// Initialize QueryEngine with retention
+		reader, err := storage.NewColumnReader()
+		if err != nil {
+			log.Fatalf("Failed to create reader: %v", err)
+		}
+		writer, err := storage.NewColumnWriter()
+		if err != nil {
+			log.Fatalf("Failed to create writer: %v", err)
+		}
+		qe = engine.NewQueryEngine(*dataDir, mt, reader.ReadSnapshot, writer.WriteSnapshot, retention)
+		log.Printf("QueryEngine initialized. Data: %s, Retention: %v", *dataDir, retention)
+
+		// Start Background Cleaner
+		go qe.RunCleaner(1 * time.Hour)
+
+		if *role == "ingester" {
+			log.Printf("NanoLog Ingester Node Started (Storage & Local Ingest)")
+		}
 	}
-	qe := engine.NewQueryEngine(*dataDir, mt, reader.ReadSnapshot, writer.WriteSnapshot, retention)
-	log.Printf("QueryEngine initialized. Data: %s, Retention: %v", *dataDir, retention)
 
-	// Start Background Cleaner
-	go qe.RunCleaner(1 * time.Hour)
+	log.Println("NanoLog Kernel v0.1 Starting HTTP Server...")
 
-	// 3. Initialize Metadata Store
-	metaStore := controller.NewStore(fmt.Sprintf("%s/.nanolog.sys", *dataDir))
-	if err := metaStore.Load(); err != nil {
-		log.Fatalf("Failed to load systems metadata: %v", err)
-	}
+	// 4. Initialize Aggregator for Console role
+	aggregator := cluster.NewAggregator(dataNodeList)
 
-	// 4. Initialize IngestServer with meta store
-	srv := server.NewIngestServer(qe, metaStore, *webDir, *dataDir)
+	// 4. Initialize IngestServer
+	srv := server.NewIngestServer(qe, metaStore, *webDir, *dataDir, *role, aggregator)
 	addr := fmt.Sprintf(":%d", *port)
+	_ = adminAddr // Reserved for future use in ingester -> admin registration
 
 	// 4. Start HTTP Server in a goroutine
 	go func() {
 		log.Printf("Listening on %s", addr)
-		log.Printf("Dashboard available at http://localhost%s", addr)
-		if err := srv.Start(addr); err != nil {
+		if *role == "standalone" || *role == "console" {
+			log.Printf("Web Console available at http://localhost%s", addr)
+		}
+		if err := srv.Start(addr, *role); err != nil {
 			log.Printf("Server stopped: %v", err)
 		}
 	}()
@@ -105,9 +146,11 @@ func main() {
 		log.Printf("Server shutdown error: %v", err)
 	}
 
-	log.Println("Flushing memory to disk...")
-	if err := qe.Flush(); err != nil {
-		log.Printf("Final flush failed: %v", err)
+	if qe != nil {
+		log.Println("Flushing memory to disk...")
+		if err := qe.Flush(); err != nil {
+			log.Printf("Final flush failed: %v", err)
+		}
 	}
 
 	log.Println("NanoLog exited gracefully.")

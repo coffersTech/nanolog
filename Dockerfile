@@ -37,6 +37,7 @@ VOLUME /root/data
 EXPOSE 8080
 
 # Run the application
-# We use --data=/root/data to ensure it points to the container volume
-# and --web=./web to point to the copied web files
+# ENTRYPOINT contains fixed args, CMD contains overridable defaults
+# Usage: docker run nanolog --role=engine --admin-addr=admin:8080
 ENTRYPOINT ["./nanolog", "--port=8080", "--data=/root/data", "--web=./web"]
+CMD ["--role=standalone"]

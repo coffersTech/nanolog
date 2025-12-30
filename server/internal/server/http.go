@@ -17,6 +17,7 @@ import (
 	"encoding/hex"
 	"sync"
 
+	"github.com/coffersTech/nanolog/server/internal/cluster"
 	"github.com/coffersTech/nanolog/server/internal/controller"
 	"github.com/coffersTech/nanolog/server/internal/engine"
 	"github.com/valyala/fastjson"
@@ -41,23 +42,48 @@ type IngestServer struct {
 	parser        fastjson.ParserPool
 	ingestCounter int64 // Monotonic counter for total requests
 	ingestRate    int64 // Requests per second (updated periodically)
+	role          string
+	aggregator    *cluster.Aggregator
 }
 
-func NewIngestServer(qe *engine.QueryEngine, ms *controller.Store, webDir string, dataDir string) *IngestServer {
+func NewIngestServer(qe *engine.QueryEngine, ms *controller.Store, webDir string, dataDir string, role string, aggregator *cluster.Aggregator) *IngestServer {
 	return &IngestServer{
 		queryEngine: qe,
 		metaStore:   ms,
 		webDir:      webDir,
 		dataDir:     dataDir,
 		sessions:    make(map[string]UserSession),
+		role:        role,
+		aggregator:  aggregator,
 	}
 }
 
 // Start runs the HTTP server.
-func (s *IngestServer) Start(addr string) error {
+func (s *IngestServer) Start(addr string, role string) error {
 	mux := http.NewServeMux()
 
-	// API routes (protected)
+	switch role {
+	case "console":
+		s.RegisterConsoleRoutes(mux)
+	case "ingester":
+		s.RegisterIngesterRoutes(mux)
+	default: // "standalone"
+		s.RegisterConsoleRoutes(mux)
+		s.RegisterIngesterRoutes(mux)
+	}
+
+	s.srv = &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+}
+
+func (s *IngestServer) RegisterConsoleRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/system/status", s.handleSystemStatus)
 	mux.HandleFunc("/api/system/init", s.handleSystemInit)
@@ -71,7 +97,7 @@ func (s *IngestServer) Start(addr string) error {
 	mux.Handle("/api/tokens", s.AuthMiddleware(http.HandlerFunc(s.handleTokens)))
 	mux.Handle("/api/tokens/", s.AuthMiddleware(http.HandlerFunc(s.handleTokenItem)))
 
-	mux.Handle("/api/ingest", s.AuthMiddleware(http.HandlerFunc(s.handleIngest)))
+	// Aggregated Search/Stats (Console specific)
 	mux.Handle("/api/search", s.AuthMiddleware(http.HandlerFunc(s.handleQuery)))
 	mux.Handle("/api/histogram", s.AuthMiddleware(http.HandlerFunc(s.handleHistogram)))
 	mux.Handle("/api/stats", s.AuthMiddleware(http.HandlerFunc(s.handleStats)))
@@ -81,16 +107,20 @@ func (s *IngestServer) Start(addr string) error {
 		fs := http.FileServer(http.Dir(s.webDir))
 		mux.Handle("/", fs)
 	}
+}
 
-	s.srv = &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
+func (s *IngestServer) RegisterIngesterRoutes(mux *http.ServeMux) {
+	// Ingest endpoint (Authenticated)
+	mux.Handle("/api/ingest", s.AuthMiddleware(http.HandlerFunc(s.handleIngest)))
 
-	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return err
+	// Internal/Local Query endpoints
+	// If it's standalone, these are already registered via RegisterConsoleRoutes with Auth
+	// If it's pure ingester, we might want different auth or specific internal endpoints.
+	if s.role == "ingester" {
+		mux.HandleFunc("/api/search", s.handleQuery)
+		mux.HandleFunc("/api/histogram", s.handleHistogram)
+		mux.HandleFunc("/api/stats", s.handleStats)
 	}
-	return nil
 }
 
 // Shutdown gracefully shuts down the server.
@@ -115,6 +145,13 @@ func (s *IngestServer) AuthMiddleware(next http.Handler) http.Handler {
 		if token == "" {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="NanoLog"`)
 			http.Error(w, "Unauthorized: Missing token", http.StatusUnauthorized)
+			return
+		}
+
+		// Skip metaStore checks if it's nil (e.g. specialized Engine node)
+		// Note: In a real distributed scenario, this might check against a shared secret or remote JWKS
+		if s.metaStore == nil {
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -163,9 +200,15 @@ func (s *IngestServer) AuthMiddleware(next http.Handler) http.Handler {
 
 // handleSystemStatus returns the system initialization status.
 func (s *IngestServer) handleSystemStatus(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(map[string]bool{
-		"initialized": s.metaStore.IsInitialized(),
-	})
+	resp := map[string]interface{}{
+		"node_role": s.role,
+	}
+	if s.metaStore != nil {
+		resp["initialized"] = s.metaStore.IsInitialized()
+	} else {
+		resp["initialized"] = true // Engine nodes don't handle init
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleSystemInit initializes the system with the first SuperAdmin.
@@ -488,10 +531,40 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse filter parameters
-	filter := engine.Filter{}
+	// 1. If Console role, aggregate from data nodes
+	if s.role == "console" {
+		params := cluster.QueryParams{
+			RawQuery: r.URL.RawQuery,
+			Limit:    s.parseLimit(r),
+			Auth:     r.Header.Get("Authorization"),
+		}
+		rows, err := s.aggregator.Search(params)
+		if err != nil {
+			http.Error(w, "Aggregation failed", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(rows)
+		return
+	}
 
-	// Support both min_ts/max_ts and start/end aliases
+	// 2. Standalone/Ingester behavior: Execute local scan
+	filter := s.parseFilter(r)
+	limit := s.parseLimit(r)
+
+	rows, err := s.queryEngine.ExecuteScan(filter, limit)
+	if err != nil {
+		log.Printf("Query error: %v", err)
+		http.Error(w, "Query failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rows)
+}
+
+func (s *IngestServer) parseFilter(r *http.Request) engine.Filter {
+	filter := engine.Filter{}
 	minTsStr := r.URL.Query().Get("min_ts")
 	if minTsStr == "" {
 		minTsStr = r.URL.Query().Get("start")
@@ -501,7 +574,6 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 			filter.MinTime = val
 		}
 	}
-
 	maxTsStr := r.URL.Query().Get("max_ts")
 	if maxTsStr == "" {
 		maxTsStr = r.URL.Query().Get("end")
@@ -511,7 +583,6 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 			filter.MaxTime = val
 		}
 	}
-
 	if levelStr := r.URL.Query().Get("level"); levelStr != "" {
 		if val, err := strconv.Atoi(levelStr); err == nil {
 			filter.Level = uint8(val)
@@ -520,8 +591,10 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 	filter.Service = r.URL.Query().Get("service")
 	filter.Host = r.URL.Query().Get("host")
 	filter.Query = r.URL.Query().Get("q")
+	return filter
+}
 
-	// Parse limit parameter (default 100)
+func (s *IngestServer) parseLimit(r *http.Request) int {
 	limitStr := r.URL.Query().Get("limit")
 	limit := 100
 	if limitStr != "" {
@@ -529,20 +602,7 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
-
-	// Execute scan
-	rows, err := s.queryEngine.ExecuteScan(filter, limit)
-	if err != nil {
-		log.Printf("Query error: %v", err)
-		http.Error(w, "Query failed", http.StatusInternalServerError)
-		return
-	}
-
-	// Return JSON
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(rows); err != nil {
-		log.Printf("JSON encode error: %v", err)
-	}
+	return limit
 }
 
 func (s *IngestServer) handleHistogram(w http.ResponseWriter, r *http.Request) {
@@ -551,58 +611,56 @@ func (s *IngestServer) handleHistogram(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.role == "console" {
+		params := cluster.QueryParams{
+			RawQuery: r.URL.RawQuery,
+			Auth:     r.Header.Get("Authorization"),
+		}
+		points, err := s.aggregator.Histogram(params)
+		if err != nil {
+			http.Error(w, "Aggregation failed", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(points)
+		return
+	}
+
 	q := r.URL.Query()
 	startStr := q.Get("start")
 	endStr := q.Get("end")
-	intervalStr := q.Get("interval") // User provides seconds? Let's check logic.
+	intervalStr := q.Get("interval")
 
 	// Defaults
 	end := time.Now().UnixNano()
-	start := end - (1 * time.Hour).Nanoseconds() // Default last 1h
-	var interval int64 = 60 * 1_000_000_000      // Default 1 min (in nanos)
+	start := end - (1 * time.Hour).Nanoseconds()
+	var interval int64 = 60 * 1_000_000_000 // 1 min
 
 	if startStr != "" {
 		if val, err := strconv.ParseInt(startStr, 10, 64); err == nil {
-			start = val * 1_000_000 // Convert ms to nanos
+			start = val * 1_000_000
 		}
 	}
 	if endStr != "" {
 		if val, err := strconv.ParseInt(endStr, 10, 64); err == nil {
-			end = val * 1_000_000 // Convert ms to nanos
+			end = val * 1_000_000
 		}
 	}
 	if intervalStr != "" {
 		if val, err := strconv.ParseInt(intervalStr, 10, 64); err == nil {
-			interval = val * 1_000_000_000 // Convert seconds to nanos
+			interval = val * 1_000_000_000
 		}
 	}
 
-	filter := engine.Filter{
-		MinTime: start,
-		MaxTime: end,
-		Service: q.Get("service"),
-		Host:    q.Get("host"),
-		Query:   q.Get("q"),
-	}
-
-	if lvlStr := q.Get("level"); lvlStr != "" {
-		if lvl, err := strconv.Atoi(lvlStr); err == nil {
-			filter.Level = uint8(lvl)
-		}
-	}
-
-	// Computes
+	filter := s.parseFilter(r)
 	points, err := s.queryEngine.ComputeHistogram(start, end, interval, filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Return JSON
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(points); err != nil {
-		log.Printf("JSON encode error: %v", err)
-	}
+	json.NewEncoder(w).Encode(points)
 }
 
 // handleStats calculates system statistics.
@@ -612,10 +670,19 @@ func (s *IngestServer) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.role == "console" {
+		stats, err := s.aggregator.Stats(r.Header.Get("Authorization"))
+		if err != nil {
+			http.Error(w, "Aggregation failed", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(stats)
+		return
+	}
+
 	stats := s.queryEngine.GetStats()
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(stats); err != nil {
-		log.Printf("JSON encode error: %v", err)
-	}
+	json.NewEncoder(w).Encode(stats)
 }

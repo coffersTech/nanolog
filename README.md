@@ -41,12 +41,30 @@ docker run -d \
 ```bash
 git clone https://github.com/coffersTech/nanolog.git
 cd nanolog/server
+```
 
-# 直接启动（默认端口 8080，数据存放在 ../data）
-./run.sh start
+#### run.sh 命令一览
 
-# 带参数启动
-./run.sh start --port 9000 --data ./my-data
+| 命令 | 说明 |
+|------|------|
+| `./run.sh standalone` | 启动全功能单机模式 ⭐ |
+| `./run.sh console` | 启动为 Console 节点 (需配合 `--data-nodes`) |
+| `./run.sh ingester` | 启动为 Ingester 存储节点 |
+| `./run.sh start` | 编译并启动 (支持自定义参数) |
+| `./run.sh build` | 仅编译到 `bin/nanolog` |
+| `./run.sh test` | 运行单元测试 |
+
+#### 使用示例
+
+```bash
+# 单机模式 (开发测试推荐)
+./run.sh standalone --port 8080
+
+# Console 模式 (聚合查询多个 Ingester)
+./run.sh console --port 8000 --data-nodes=http://localhost:8081,http://localhost:8082
+
+# Ingester 模式 (日志存储节点)
+./run.sh ingester --port 8081 --data ./data_1
 ```
 
 ## 🛠️ 初始化与登录
@@ -63,6 +81,9 @@ cd nanolog/server
 | `--data` | 数据文件、密钥及元数据存储目录 | `./data` |
 | `--web` | 静态网页资源目录 | `../web` |
 | `--key` | 手动指定 Master Key 文件路径 | `<data>/.nanolog.key` |
+| `--role` | 服务器角色 (`standalone`\|`console`\|`ingester`) | `standalone` |
+| `--data-nodes` | 数据节点列表 (仅用于 console 角色) | (空) |
+| `--admin-addr` | 管理节点地址 (用于 ingester 向 console 汇报) | `localhost:8080` |
 | `--retention` | 数据保留时长 (例如 `168h`, `7d`) | `168h` |
 
 ## 🔌 接入指南 (API Auth)
@@ -73,7 +94,8 @@ cd nanolog/server
 **Header**: `Authorization: Bearer <YOUR_API_KEY>`
 
 ```bash
-curl -X POST http://localhost:8080/api/ingest \
+# 向 Ingester 节点推送日志
+curl -X POST http://localhost:8081/api/ingest \
   -H "Authorization: Bearer sk-xxxxxx" \
   -d '{"level":"INFO", "msg":"Hello NanoLog"}'
 ```
@@ -93,6 +115,101 @@ nanolog:
   server-url: http://localhost:8080
   api-key: sk-xxxxxxx
   service: order-api
+```
+
+## 🌐 分布式部署 (Docker)
+
+NanoLog v0.5.0 实现了真正的读写分离，支持一个 `console` 节点管理多个 `ingester` 节点。
+
+### 快速启动
+
+```bash
+docker-compose -f docker-compose-distributed.yml up -d
+```
+
+### 架构说明
+
+| 节点类型 | 默认端口 | 职责 | 核心组件 |
+|------|------|------|-------------|
+| **Console** | 8080 | Web UI、用户权限、API Key、**聚合查询** | MetaStore, Aggregator |
+| **Ingester** | 8081 | 高速日志入库、WAL、**本地查询** | Engine (Storage) |
+
+### 聚合查询配置
+
+在启动 `console` 节点时，使用 `--data-nodes` 指定后端数据节点：
+
+```bash
+./nanolog --role=console --data-nodes="http://node-1:8080,http://node-2:8080"
+```
+
+### SDK 配置
+
+将 SDK 的 `server-url` 直接指向任意一个 **Ingester** 节点以获得最高写入性能：
+
+```yaml
+nanolog:
+  server-url: http://localhost:8081  # 指向 Ingester 端口
+  api-key: sk-xxxxxxx
+```
+
+### 生产建议
+
+#### 1. Docker Compose 一键部署
+
+项目提供了完整的分布式部署配置：
+
+```bash
+docker-compose -f docker-compose-distributed.yml up -d
+```
+
+端口分配：
+| 端口 | 服务 | 用途 |
+|------|------|------|
+| **8000** | Console | Web 管理界面 + 聚合查询 |
+| **8088** | Nginx LB | SDK 统一写入入口 (轮询分发) |
+| 8081/8082 | Ingester | 数据节点 (内部端口) |
+
+#### 2. Nginx 反向代理配置
+
+使用 Nginx 实现路由分流与负载均衡：
+
+```nginx
+upstream ingesters {
+    server ingester-1:8080;
+    server ingester-2:8080;
+}
+
+server {
+    listen 80;
+    
+    # SDK 写入 → 轮询分发到 Ingester 集群
+    location /api/ingest {
+        proxy_pass http://ingesters;
+    }
+    
+    # 管理 API → Console 节点
+    location /api/system, /api/users, /api/tokens {
+        proxy_pass http://console:8080;
+    }
+    
+    # 聚合查询 → Console 节点
+    location /api/search, /api/stats, /api/histogram {
+        proxy_pass http://console:8080;
+    }
+    
+    # Web UI → Console 节点
+    location / {
+        proxy_pass http://console:8080;
+    }
+}
+```
+
+#### 3. SDK 配置
+
+```yaml
+nanolog:
+  server-url: http://your-nginx-lb:8088  # 指向 Nginx 负载均衡器
+  api-key: sk-xxxxxxx
 ```
 
 ---
