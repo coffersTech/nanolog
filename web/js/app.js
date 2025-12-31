@@ -87,6 +87,7 @@ createApp({
         const recentCustomRanges = ref(JSON.parse(localStorage.getItem('recentCustomRanges') || '[]'));
         const timeParams = ref({ start: null, end: null });
         const timeRangeLabel = ref('');
+        const histogramTotal = ref(0);
 
         // Confirmation Modal
         const confirmModal = ref({ show: false, title: '', message: '', action: null });
@@ -454,15 +455,44 @@ createApp({
                         data: [],
                         backgroundColor: '#06b6d4', // cyan-500
                         borderRadius: 2,
-                        borderSkipped: false
+                        borderSkipped: false,
+                        hoverBackgroundColor: '#0891b2'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 25
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     scales: {
                         x: {
-                            ticks: { color: '#6b7280', maxTicksLimit: 10 },
+                            ticks: {
+                                color: '#6b7280',
+                                maxTicksLimit: 10,
+                                callback: function (value) {
+                                    const ts = this.getLabelForValue(value);
+                                    if (!ts) return '';
+                                    const d = new Date(ts / 1000000);
+                                    const pad = (n) => String(n).padStart(2, '0');
+                                    const durationSec = chartInstance.config.customDuration || 0;
+
+                                    if (durationSec > 30 * 86400) return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                                    if (durationSec > 86400) return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+                                    // Default Time
+                                    if ((chartInstance.config.customInterval || 60) < 60) {
+                                        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                                    }
+                                    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                                }
+                            },
                             grid: { display: false }
                         },
                         y: {
@@ -473,14 +503,53 @@ createApp({
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            mode: 'index',
-                            intersect: false,
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#1f2937', // gray-800
+                            bodyColor: '#374151', // gray-700
+                            borderColor: '#e5e7eb', // gray-200
+                            borderWidth: 1,
+                            padding: 12,
+                            boxPadding: 4,
+                            usePointStyle: true,
                             callbacks: {
                                 title: (items) => {
                                     if (items.length > 0) {
-                                        const d = new Date(parseInt(items[0].label) / 1000000);
-                                        return d.toLocaleTimeString();
+                                        const startTs = parseInt(items[0].label);
+                                        const intervalSec = chartInstance.config.customInterval || 0;
+                                        const startD = new Date(startTs / 1000000);
+                                        const endD = new Date((startTs / 1000000) + (intervalSec * 1000));
+
+                                        const pad = (n) => String(n).padStart(2, '0');
+                                        const fmtTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                                        const fmtDate = (d) => `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+                                        // Include date if range > 24h
+                                        if ((chartInstance.config.customDuration || 0) > 86400) {
+                                            return `${fmtDate(startD)} ${fmtTime(startD)} - ${fmtTime(endD)}`;
+                                        }
+                                        return `${fmtTime(startD)} - ${fmtTime(endD)}`;
                                     }
+                                    return '';
+                                },
+                                label: (context) => {
+                                    const count = context.raw;
+                                    const interval = chartInstance.config.customInterval || 0;
+                                    let intervalStr = interval + '秒';
+                                    if (interval >= 3600) intervalStr = Math.round(interval / 3600 * 10) / 10 + '小时';
+                                    else if (interval >= 60) intervalStr = Math.round(interval / 60 * 10) / 10 + '分钟';
+
+                                    return [
+                                        ` 日志总条数    ${count}`,
+                                        ` 统计间隔        ${intervalStr}`
+                                    ];
+                                },
+                                labelColor: function (context) {
+                                    return {
+                                        borderColor: '#06b6d4',
+                                        backgroundColor: '#06b6d4',
+                                        borderWidth: 1,
+                                        borderRadius: 0,
+                                    };
                                 }
                             }
                         }
@@ -492,49 +561,86 @@ createApp({
         const fetchHistogram = async () => {
             if (!isAuthenticated.value) return;
             try {
+                // 1. Calculate Dynamic Interval
+                let durationSec = 15 * 60; // Default 15m
+                let startNs = timeParams.value.start;
+                let endNs = timeParams.value.end;
+
+                if (startNs && endNs) {
+                    durationSec = (endNs - startNs) / 1000000000;
+                } else {
+                    // Fallback if params missing (shouldn't happen with fix)
+                    endNs = Date.now() * 1000000;
+                    startNs = endNs - (durationSec * 1000000000);
+                }
+
+                // Target ~50 bars
+                const rawInterval = durationSec / 50;
+
+                // Snap to grid (seconds)
+                const ranges = [
+                    10, 20, 30,
+                    60, 300, 600, 1800, // 1m, 5m, 10m, 30m
+                    3600, 7200, 14400, 21600, 43200, // 1h, 2h, 4h, 6h, 12h
+                    86400, 172800 // 1d, 2d
+                ];
+
+                // Find closest standard interval (rounding up)
+                let interval = ranges.find(r => r >= rawInterval) || ranges[ranges.length - 1];
+                if (rawInterval > ranges[ranges.length - 1]) {
+                    // For very long ranges, just use raw calc rounded to hours
+                    interval = Math.ceil(rawInterval / 3600) * 3600;
+                }
+
                 let qs = parseSearchQuery(searchQuery.value);
-
-                // Dynamic interval calculation: Aim for ~60 points
                 if (!qs.includes('interval=')) {
-                    let durationSec = 15 * 60; // Default 15m
-                    if (timeParams.value.start && timeParams.value.end) {
-                        durationSec = (timeParams.value.end - timeParams.value.start) / 1000000000;
-                    }
-
-                    let interval = Math.max(1, Math.floor(durationSec / 60));
-                    // Snap to sensible intervals
-                    if (interval > 3600) interval = Math.max(3600, Math.floor(interval / 3600) * 3600);
-                    else if (interval > 60) interval = Math.max(60, Math.floor(interval / 60) * 60);
-
                     qs += `&interval=${interval}`;
                 }
 
+                // 2. Fetch Data
                 const res = await apiFetch(`/api/histogram?${qs}`);
-                const data = await res.json();
+                const data = await res.json(); // [{time: ns, count: int}, ...]
+
+                // 3. Zero-Fill Logic (Generate Buckets)
+                const buckets = [];
+                // Align start time to interval boundary for clean charts
+                const intervalNs = interval * 1000000000;
+                let current = Math.floor(startNs / intervalNs) * intervalNs;
+                const endBoundary = Math.ceil(endNs / intervalNs) * intervalNs;
+
+                // Create Map for O(1) lookup
+                const dataMap = new Map();
+                if (data) {
+                    data.forEach(p => {
+                        // Align data timestamp to bucket start
+                        const bucketTime = Math.floor(p.time / intervalNs) * intervalNs;
+                        dataMap.set(bucketTime, (dataMap.get(bucketTime) || 0) + p.count);
+                    });
+                }
+
+                while (current <= endBoundary) {
+                    buckets.push({
+                        time: current,
+                        count: dataMap.get(current) || 0
+                    });
+                    current += intervalNs;
+                }
 
                 if (chartInstance) {
-                    if (data && data.length > 0) {
-                        // Format timestamps as readable date labels
-                        const formatLabel = (ts) => {
-                            const d = new Date(ts / 1000000);
-                            const pad = (n) => String(n).padStart(2, '0');
-                            // Show date if time range spans multiple days
-                            const now = new Date();
-                            const isToday = d.toDateString() === now.toDateString();
-                            if (isToday) {
-                                return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                            } else {
-                                return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                            }
-                        };
-                        chartInstance.data.labels = data.map(p => formatLabel(p.time));
-                        chartInstance.data.datasets[0].data = data.map(p => p.count);
-                    } else {
-                        chartInstance.data.labels = [];
-                        chartInstance.data.datasets[0].data = [];
-                    }
+                    // Update chart data with raw timestamps
+                    chartInstance.data.labels = buckets.map(p => p.time);
+                    chartInstance.data.datasets[0].data = buckets.map(p => p.count);
+
+                    // Store metadata for tooltip and formatting
+                    chartInstance.config.customInterval = interval; // in seconds
+                    chartInstance.config.customDuration = durationSec;
+
                     chartInstance.update();
                 }
+
+                // Update total count
+                histogramTotal.value = buckets.reduce((acc, curr) => acc + curr.count, 0);
+
             } catch (e) {
                 if (e.message !== 'Unauthorized') console.error("Histogram fetch error", e);
             }
@@ -979,7 +1085,7 @@ createApp({
             selectedTimeRange, showTimeRangeDropdown, customTimeRange,
             recentCustomRanges, timeParams, timeRangeLabel,
             updateTimeRange, applyCustomTimeRange, selectRecentCustom,
-            showRecentHistory
+            showRecentHistory, histogramTotal
         };
     }
 }).mount('#app');

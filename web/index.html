@@ -269,7 +269,7 @@
             </div>
             <!-- Top Header -->
             <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-8 shrink-0 relative z-40">
-                <div class="flex items-center space-x-3 flex-1 max-w-3xl">
+                <div class="flex items-center space-x-3 flex-1">
                     <!-- Time Range Selector -->
                     <div class="relative shrink-0">
                         <button @click="showTimeRangeDropdown = !showTimeRangeDropdown"
@@ -435,15 +435,15 @@
                             </path>
                         </svg>
                     </button>
-                    <div class="h-8 w-px bg-gray-800"></div>
-                    <div class="text-sm font-medium text-gray-400">
-                        <span class="text-white">{{ logs.length }}</span> items found
-                    </div>
+
                 </div>
             </header>
 
             <!-- Histogram Chart -->
             <div class="h-48 bg-gray-950 border-b border-gray-800 p-4 relative">
+                <div class="absolute top-3 left-4 text-xs font-medium text-gray-500 z-10 pointer-events-none">
+                    日志条数 <span class="text-gray-200 font-bold ml-1 text-sm">{{ formatNumber(histogramTotal) }}</span>
+                </div>
                 <canvas id="logHistogram"></canvas>
             </div>
 
@@ -663,7 +663,8 @@
                             class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg shadow-cyan-500/10 flex items-center space-x-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v16m8-8H4"></path>
+                                    d="M12 4v16m8-8H4">
+                                </path>
                             </svg>
                             <span>{{ t('settings.add_user') }}</span>
                         </button>
@@ -731,7 +732,8 @@
                             class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg shadow-cyan-500/10 flex items-center space-x-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v16m8-8H4"></path>
+                                    d="M12 4v16m8-8H4">
+                                </path>
                             </svg>
                             <span>{{ t('settings.add_key') }}</span>
                         </button>
