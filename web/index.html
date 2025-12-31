@@ -8,7 +8,85 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
     <link rel="stylesheet" href="css/style.css?v=1.2">
+    <style>
+        /* Flatpickr Dark Theme Customization */
+        .flatpickr-calendar {
+            background: #0f172a !important;
+            /* gray-900 */
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5) !important;
+            border-radius: 12px !important;
+        }
+
+        .flatpickr-day {
+            color: #f1f5f9 !important;
+            /* slate-100 */
+        }
+
+        .flatpickr-day.flatpickr-disabled,
+        .flatpickr-day.flatpickr-disabled:hover,
+        .flatpickr-day.prevMonthDay,
+        .flatpickr-day.nextMonthDay {
+            color: #475569 !important;
+            /* slate-500 */
+        }
+
+        .flatpickr-day.selected {
+            background: #0891b2 !important;
+            /* cyan-600 */
+            border-color: #0891b2 !important;
+            color: #fff !important;
+        }
+
+        .flatpickr-day:hover {
+            background: rgba(8, 145, 178, 0.2) !important;
+        }
+
+        .flatpickr-weekday {
+            color: #94a3b8 !important;
+            /* slate-400 */
+            font-weight: 600 !important;
+        }
+
+        .flatpickr-time input,
+        .flatpickr-time .flatpickr-am-pm {
+            color: #fff !important;
+        }
+
+        .flatpickr-time .flatpickr-time-separator {
+            color: #94a3b8 !important;
+        }
+
+        .flatpickr-calendar.hasTime .flatpickr-time {
+            height: 44px !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+
+        .flatpickr-months .flatpickr-month,
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        .numInput.cur-year {
+            color: #fff !important;
+            fill: #fff !important;
+            font-weight: 700 !important;
+        }
+
+        .flatpickr-months .flatpickr-prev-month,
+        .flatpickr-months .flatpickr-next-month {
+            color: #fff !important;
+            fill: #fff !important;
+        }
+
+        .flatpickr-time input:hover,
+        .flatpickr-time .flatpickr-am-pm:hover,
+        .flatpickr-time input:focus,
+        .flatpickr-time .flatpickr-am-pm:focus {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+    </style>
 </head>
 
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans selection:bg-cyan-500/30">
@@ -212,7 +290,7 @@
 
                         <!-- Dropdown Menu (Professional Redesign) -->
                         <transition name="dropdown">
-                            <div v-if="showTimeRangeDropdown"
+                            <div v-show="showTimeRangeDropdown"
                                 class="absolute top-full left-0 mt-2 w-[540px] bg-gray-900/95 backdrop-blur-2xl border border-gray-700/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[100] overflow-hidden flex flex-col divide-y divide-gray-800/50 animate-in fade-in zoom-in duration-200">
 
                                 <!-- Header -->
@@ -242,8 +320,9 @@
                                             <label
                                                 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">{{
                                                 t('search.start_time') }}</label>
-                                            <input type="datetime-local" v-model="customTimeRange.start"
-                                                class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all font-mono">
+                                            <input type="text" id="start-time-picker" v-model="customTimeRange.start"
+                                                class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all font-mono"
+                                                placeholder="Select Start Time...">
                                         </div>
                                         <div class="pt-5 text-gray-700">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,8 +334,9 @@
                                             <label
                                                 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">{{
                                                 t('search.end_time') }}</label>
-                                            <input type="datetime-local" v-model="customTimeRange.end"
-                                                class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all font-mono">
+                                            <input type="text" id="end-time-picker" v-model="customTimeRange.end"
+                                                class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all font-mono"
+                                                placeholder="Select End Time...">
                                         </div>
                                         <div class="pt-5">
                                             <button @click="applyCustomTimeRange"
@@ -316,7 +396,8 @@
                                         <button v-for="(r, idx) in recentCustomRanges" :key="idx"
                                             @click="selectRecentCustom(r)"
                                             class="w-full text-left px-3 py-2 rounded-lg bg-gray-950/30 border border-gray-800/50 hover:border-cyan-500/30 hover:bg-cyan-500/5 text-[11px] text-gray-400 hover:text-gray-200 transition-all font-mono group flex items-center justify-between">
-                                            <span>{{ r.start.replace('T', ' ') }} ~ {{ r.end.replace('T', ' ') }}</span>
+                                            <span>{{ r.label || (r.start.replace('T', ' ') + ' ~ ' + r.end.replace('T',
+                                                ' ')) }}</span>
                                             <svg class="w-3 h-3 text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"
                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1193,7 +1274,7 @@
     </div>
 
     <script src="js/i18n.js"></script>
-    <script src="js/app.js?v=1.4"></script>
+    <script src="js/app.js?v=1.5"></script>
 </body>
 
 </html>

@@ -15,9 +15,12 @@ createApp({
         const stats = ref({ ingestion_rate: 0, disk_usage: 0, total_logs: 0 });
         let refreshInterval = null;
         let statsInterval = null;
+        let startPicker = null;
+        let endPicker = null;
 
         // I18n State
         const currentLang = ref(localStorage.getItem('nanolog_lang') || 'en');
+        console.log('NanoLog App Logic v1.5 Loaded');
         const t = (path, params = {}) => {
             const keys = path.split('.');
             let obj = messages[currentLang.value];
@@ -102,14 +105,19 @@ createApp({
 
         watch(showTimeRangeDropdown, (open) => {
             if (open && timeParams.value.start && timeParams.value.end) {
-                // Sync inputs with current range when opening
                 const formatDate = (ts) => {
                     const d = new Date(ts / 1000000);
                     const pad = (n) => String(n).padStart(2, '0');
-                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
                 };
-                customTimeRange.value.start = formatDate(timeParams.value.start);
-                customTimeRange.value.end = formatDate(timeParams.value.end);
+                const s = formatDate(timeParams.value.start);
+                const e = formatDate(timeParams.value.end);
+                customTimeRange.value.start = s;
+                customTimeRange.value.end = e;
+
+                // Sync Flatpickr instances
+                if (startPicker) startPicker.setDate(s, false);
+                if (endPicker) endPicker.setDate(e, false);
             }
         });
 
@@ -199,39 +207,42 @@ createApp({
         const parseSearchQuery = (q) => {
             const params = new URLSearchParams();
             params.append('limit', '100');
-            if (!q) return params.toString();
 
-            const parts = q.split(/\s+/);
-            let textSearch = [];
+            // Parse query string if provided
+            if (q) {
+                const parts = q.split(/\s+/);
+                let textSearch = [];
 
-            parts.forEach(part => {
-                if (part.includes('=')) {
-                    const [key, val] = part.split('=');
-                    const k = key.toLowerCase();
-                    if (k === 'level') {
-                        const lvls = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3, 'FATAL': 4 };
-                        const l = lvls[val.toUpperCase()];
-                        params.append('level', l !== undefined ? l : val);
-                    } else if (k === 'service' || k === 'svc') {
-                        params.append('service', val);
-                    } else if (k === 'host' || k === 'ip' || k === 'hostname') {
-                        params.append('host', val);
-                    } else if (k === 'start' || k === 'min_ts') {
-                        params.append('start', val);
-                    } else if (k === 'end' || k === 'max_ts') {
-                        params.append('end', val);
+                parts.forEach(part => {
+                    if (part.includes('=')) {
+                        const [key, val] = part.split('=');
+                        const k = key.toLowerCase();
+                        if (k === 'level') {
+                            const lvls = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3, 'FATAL': 4 };
+                            const l = lvls[val.toUpperCase()];
+                            params.append('level', l !== undefined ? l : val);
+                        } else if (k === 'service' || k === 'svc') {
+                            params.append('service', val);
+                        } else if (k === 'host' || k === 'ip' || k === 'hostname') {
+                            params.append('host', val);
+                        } else if (k === 'start' || k === 'min_ts') {
+                            params.append('start', val);
+                        } else if (k === 'end' || k === 'max_ts') {
+                            params.append('end', val);
+                        } else {
+                            textSearch.push(part);
+                        }
                     } else {
                         textSearch.push(part);
                     }
-                } else {
-                    textSearch.push(part);
-                }
-            });
+                });
 
-            if (textSearch.length > 0) {
-                params.append('q', textSearch.join(' '));
+                if (textSearch.length > 0) {
+                    params.append('q', textSearch.join(' '));
+                }
             }
 
+            // Always append time params if available (this was being skipped before!)
             if (timeParams.value.start) params.append('start', timeParams.value.start);
             if (timeParams.value.end) params.append('end', timeParams.value.end);
 
@@ -341,8 +352,10 @@ createApp({
             // Format label as date range
             const d1 = new Date(start / 1000000);
             const d2 = new Date(end / 1000000);
-            const fmtStr = (d) => `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const pad = (n) => String(n).padStart(2, '0');
+            const fmtStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
             timeRangeLabel.value = `${fmtStr(d1)} ~ ${fmtStr(d2)}`;
+            console.log('Applied Custom Range Label:', timeRangeLabel.value);
 
             // Save to recent
             const newRange = { start: startStr, end: endStr, label: timeRangeLabel.value };
@@ -501,7 +514,20 @@ createApp({
 
                 if (chartInstance) {
                     if (data && data.length > 0) {
-                        chartInstance.data.labels = data.map(p => p.time);
+                        // Format timestamps as readable date labels
+                        const formatLabel = (ts) => {
+                            const d = new Date(ts / 1000000);
+                            const pad = (n) => String(n).padStart(2, '0');
+                            // Show date if time range spans multiple days
+                            const now = new Date();
+                            const isToday = d.toDateString() === now.toDateString();
+                            if (isToday) {
+                                return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                            } else {
+                                return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                            }
+                        };
+                        chartInstance.data.labels = data.map(p => formatLabel(p.time));
                         chartInstance.data.datasets[0].data = data.map(p => p.count);
                     } else {
                         chartInstance.data.labels = [];
@@ -761,6 +787,25 @@ createApp({
                 }
             }
             loading.value = false;
+
+            // Initialize Flatpickr
+            const pickerConfig = {
+                enableTime: true,
+                time_24hr: true,
+                dateFormat: "Y-m-d H:i",
+                disableMobile: "true",
+                locale: currentLang.value === 'zh' ? flatpickr.l10ns.zh : flatpickr.l10ns.default,
+                onChange: (selectedDates, dateStr, instance) => {
+                    if (instance.element.id === 'start-time-picker') {
+                        customTimeRange.value.start = dateStr;
+                    } else {
+                        customTimeRange.value.end = dateStr;
+                    }
+                }
+            };
+
+            startPicker = flatpickr("#start-time-picker", pickerConfig);
+            endPicker = flatpickr("#end-time-picker", pickerConfig);
         });
 
         const formatBytes = (bytes) => {
