@@ -1,0 +1,69 @@
+# ============================================================
+# NanoLog Spring Boot Starter - Configuration Example
+# ============================================================
+# Copy this file to application.yml and modify as needed.
+# 
+# Minimum Required: server-url and token
+# ============================================================
+
+nanolog:
+  # ============================================================
+  # 认证配置 (必填)
+  # ============================================================
+  # API Token - 从 NanoLog Server Web UI 的 Token 管理页面获取
+  token: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  # ============================================================
+  # 基础配置
+  # ============================================================
+  # 是否启用 NanoLog (默认: true)
+  enabled: true
+
+  # NanoLog Server 地址
+  server-url: http://localhost:8080
+
+  # 服务名称 - 用于在 NanoLog UI 中区分日志来源
+  # 建议使用 spring.application.name
+  service: ${spring.application.name:my-service}
+
+  # ============================================================
+  # 性能调优
+  # ============================================================
+  # 每批发送的日志条数 (默认: 100)
+  # 增大可提高吞吐量，但会增加内存占用
+  batch-size: 100
+
+  # 最大刷新间隔毫秒 (默认: 1000)
+  # 减小可降低日志延迟，但会增加网络请求
+  flush-interval-ms: 1000
+
+  # ============================================================
+  # 容错配置
+  # ============================================================
+  # 是否启用本地降级存储 (默认: true)
+  # 当 Server 不可用时，日志会写入本地文件
+  enable-fallback: true
+
+  # 降级文件存储目录 (默认: /tmp/nanolog/fallback)
+  # 建议生产环境使用持久化目录
+  fallback-path: /tmp/nanolog/fallback
+
+
+# ============================================================
+# 生产环境配置示例 (application-prod.yml)
+# ============================================================
+# nanolog:
+#   token: ${NANOLOG_TOKEN}
+#   server-url: http://nanolog.internal.example.com:8080
+#   service: ${spring.application.name}
+#   batch-size: 200
+#   flush-interval-ms: 500
+#   enable-fallback: true
+#   fallback-path: /var/log/nanolog/fallback
+
+
+# ============================================================
+# 禁用 NanoLog (application-local.yml)
+# ============================================================
+# nanolog:
+#   enabled: false
