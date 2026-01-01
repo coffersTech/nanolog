@@ -78,14 +78,32 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     }
 
     // Instance Identity
-    private final String instanceId = java.util.UUID.randomUUID().toString();
-    private static final String SDK_VERSION = "java-0.1.1";
+    private String instanceId;
+    private static String SDK_VERSION = "java-unknown";
+
+    static {
+        try (java.io.InputStream is = NanoLogAppender.class.getResourceAsStream("/nanolog-version.properties")) {
+            if (is != null) {
+                java.util.Properties props = new java.util.Properties();
+                props.load(is);
+                String ver = props.getProperty("version");
+                if (ver != null && !ver.isEmpty()) {
+                    SDK_VERSION = "java-" + ver;
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+    }
 
     @Override
     public void start() {
         if (isStarted()) {
             return;
         }
+
+        // Initialize Instance ID (Persistent or New)
+        initInstanceId();
 
         // 0. Perform Handshake (Blocking, short timeout)
         performHandshake();
@@ -105,17 +123,78 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             recoveryThread.start();
         }
 
-        try {
-            if ("unknown".equals(host)) {
-                host = InetAddress.getLocalHost().getHostName();
+        // Resolve Hostname
+        if ("unknown".equals(host)) {
+            // 1. Try Environment Variables
+            String envHost = System.getenv("HOSTNAME");
+            if (envHost == null || envHost.isEmpty()) {
+                envHost = System.getenv("COMPUTERNAME");
             }
-        } catch (UnknownHostException e) {
-            // keep unknown
+
+            if (envHost != null && !envHost.isEmpty()) {
+                host = envHost;
+            } else {
+                // 2. Try InetAddress
+                try {
+                    host = InetAddress.getLocalHost().getHostName();
+                } catch (UnknownHostException e) {
+                    try {
+                        // 3. Fallback to IP
+                        host = InetAddress.getLocalHost().getHostAddress();
+                    } catch (Exception ex) {
+                        // keep unknown
+                    }
+                }
+            }
         }
 
         addInfo("NanoLogAppender started. Server: " + serverUrl + ", Service: " + serviceName +
                 ", Host: " + host + ", Fallback: " + (enableFallback ? fallbackPath : "disabled") +
                 ", InstanceID: " + instanceId);
+    }
+
+    private void initInstanceId() {
+        // 1. Try Environment Variable (Best for Docker/K8s)
+        // e.g. -e NANOLOG_INSTANCE_ID="my-app-pod-1"
+        String envId = System.getenv("NANOLOG_INSTANCE_ID");
+        if (envId != null && !envId.isEmpty()) {
+            this.instanceId = envId;
+            addInfo("Using InstanceID from environment: " + envId);
+            return;
+        }
+
+        // 2. Try to load from temp file to maintain identity across restarts
+        String tempDir = System.getProperty("java.io.tmpdir");
+        String safeServiceName = serviceName.replaceAll("[^a-zA-Z0-9.-]", "_");
+        Path idFile = Paths.get(tempDir, "nanolog", safeServiceName + ".id");
+
+        try {
+            if (Files.exists(idFile)) {
+                List<String> lines = Files.readAllLines(idFile, StandardCharsets.UTF_8);
+                if (!lines.isEmpty()) {
+                    String savedId = lines.get(0).trim();
+                    if (!savedId.isEmpty()) {
+                        this.instanceId = savedId;
+                        addInfo("Restored InstanceID: " + savedId);
+                        return;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            addWarn("Failed to load existing InstanceID: " + e.getMessage());
+        }
+
+        // 3. Generate new (Fallback)
+        this.instanceId = java.util.UUID.randomUUID().toString();
+
+        // Save
+        try {
+            Files.createDirectories(idFile.getParent());
+            Files.write(idFile, this.instanceId.getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) {
+            addWarn("Failed to persist InstanceID: " + e.getMessage());
+        }
     }
 
     private void performHandshake() {
@@ -174,6 +253,82 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         }
     }
 
+    // Filtering
+    private java.util.List<String> excludeLoggers = new java.util.ArrayList<>();
+    private java.util.List<java.util.regex.Pattern> excludeMsgPatterns = new java.util.ArrayList<>();
+
+    public void setExcludeLoggers(java.util.List<String> excludeLoggers) {
+        this.excludeLoggers = excludeLoggers;
+    }
+
+    public void setExcludeMsgPatterns(java.util.List<String> patterns) {
+        this.excludeMsgPatterns.clear();
+        for (String p : patterns) {
+            try {
+                this.excludeMsgPatterns.add(java.util.regex.Pattern.compile(p));
+            } catch (Exception e) {
+                // ignore invalid pattern
+            }
+        }
+    }
+
+    @Override
+    protected void append(ILoggingEvent event) {
+        if (event == null)
+            return;
+
+        // Filtering Logic
+        if (shouldFilter(event)) {
+            return;
+        }
+
+        // 1. Extract TraceID from MDC immediately (in logging thread)
+        String traceId = extractTraceId(event);
+
+        // 2. Wrap and enqueue
+        // Never block the logging thread
+        if (!queue.offer(new EnhancedLogEvent(event, traceId))) {
+            addWarn("NanoLog queue full, dropping log event");
+        }
+    }
+
+    private boolean shouldFilter(ILoggingEvent event) {
+        // 0. Check Marker (Code-level ignore)
+        org.slf4j.Marker marker = event.getMarker();
+        if (marker != null) {
+            // Logback events usually have a single marker or a chain.
+            // We check if it contains our ignore marker.
+            if (marker.contains("NANOLOG_IGNORE")) {
+                return true;
+            }
+            // Also check equality directly just in case
+            if (marker.getName().equals("NANOLOG_IGNORE")) {
+                return true;
+            }
+        }
+
+        // 1. Check Logger Name
+        if (excludeLoggers != null && !excludeLoggers.isEmpty()) {
+            String logger = event.getLoggerName();
+            for (String prefix : excludeLoggers) {
+                if (logger.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+
+        // 2. Check Message Pattern
+        if (excludeMsgPatterns != null && !excludeMsgPatterns.isEmpty()) {
+            String msg = event.getFormattedMessage();
+            for (java.util.regex.Pattern p : excludeMsgPatterns) {
+                if (p.matcher(msg).find()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @Override
     public void stop() {
         if (!isStarted()) {
@@ -205,21 +360,6 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         flushQueue();
         super.stop();
         addInfo("NanoLogAppender stopped.");
-    }
-
-    @Override
-    protected void append(ILoggingEvent event) {
-        if (event == null)
-            return;
-
-        // 1. Extract TraceID from MDC immediately (in logging thread)
-        String traceId = extractTraceId(event);
-
-        // 2. Wrap and enqueue
-        // Never block the logging thread
-        if (!queue.offer(new EnhancedLogEvent(event, traceId))) {
-            addWarn("NanoLog queue full, dropping log event");
-        }
     }
 
     private String extractTraceId(ILoggingEvent event) {
@@ -465,7 +605,16 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             sb.append("\"thread_name\":\"").append(escapeJson(e.getThreadName())).append("\",");
             sb.append("\"logger_name\":\"").append(escapeJson(e.getLoggerName())).append("\",");
 
-            sb.append("\"message\":\"").append(escapeJson(e.getFormattedMessage())).append("\"");
+            // Include Stack Trace if available
+            String fullMessage = e.getFormattedMessage();
+            if (e.getThrowableProxy() != null) {
+                String stackTrace = ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(e.getThrowableProxy());
+                if (stackTrace != null && !stackTrace.isEmpty()) {
+                    fullMessage += "\n" + stackTrace;
+                }
+            }
+
+            sb.append("\"message\":\"").append(escapeJson(fullMessage)).append("\"");
             sb.append("}");
         }
         sb.append("]");
@@ -475,12 +624,12 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     private String mapLevel(int levelInt) {
         // Logback levels: TRACE=5000, DEBUG=10000, INFO=20000, WARN=30000, ERROR=40000
         if (levelInt >= 40000)
-            return "3"; // ERROR
+            return "ERROR";
         if (levelInt >= 30000)
-            return "2"; // WARN
+            return "WARN";
         if (levelInt >= 20000)
-            return "1"; // INFO
-        return "0"; // DEBUG/TRACE
+            return "INFO";
+        return "DEBUG";
     }
 
     private String escapeJson(String s) {

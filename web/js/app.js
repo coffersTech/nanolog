@@ -687,7 +687,31 @@ createApp({
         watch(autoRefresh, (v) => {
             if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
             if (v > 0 && isAuthenticated.value) {
-                refreshInterval = setInterval(() => { fetchLogs(); fetchHistogram(); }, v * 1000);
+                refreshInterval = setInterval(() => {
+                    // 动态更新时间窗口 (Rolling Window)
+                    const r = selectedTimeRange.value;
+                    const now = Date.now();
+                    const ms = (m) => m * 60 * 1000;
+
+                    const durationMap = {
+                        '5m': ms(5), '15m': ms(15), '30m': ms(30),
+                        '1h': ms(60), '6h': ms(360),
+                        '24h': ms(1440), '1d': ms(1440),
+                        '3d': ms(4320), '7d': ms(10080),
+                        '30d': ms(43200), '90d': ms(129600)
+                    };
+
+                    if (durationMap[r]) {
+                        timeParams.value.end = now * 1000000;
+                        timeParams.value.start = (now - durationMap[r]) * 1000000;
+                    } else if (['today', 'this_week', 'this_month'].includes(r)) {
+                        // 仅更新结束时间为当前时间
+                        timeParams.value.end = now * 1000000;
+                    }
+
+                    fetchLogs();
+                    fetchHistogram();
+                }, v * 1000);
             }
         });
 
@@ -1152,7 +1176,7 @@ createApp({
             updateTimeRange, applyCustomTimeRange, selectRecentCustom,
             showRecentHistory, histogramTotal, searchError, highlightText,
             contextModal, openContextModal,
-            instances, isOnline, formatUptime
+            instances, isOnline, formatUptime, fetchInstances
         };
     }
 }).mount('#app');

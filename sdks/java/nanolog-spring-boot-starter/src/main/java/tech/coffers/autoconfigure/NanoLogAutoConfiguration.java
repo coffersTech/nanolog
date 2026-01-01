@@ -3,7 +3,7 @@ package tech.coffers.autoconfigure;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import tech.coffers.logback.NanoLogAppender;
-import javax.annotation.PostConstruct;
+import org.springframework.beans.factory.InitializingBean;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnClass(NanoLogAppender.class)
 @ConditionalOnProperty(prefix = "nanolog", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(NanoLogProperties.class)
-public class NanoLogAutoConfiguration {
+public class NanoLogAutoConfiguration implements InitializingBean {
 
     private final NanoLogProperties properties;
 
@@ -32,8 +32,8 @@ public class NanoLogAutoConfiguration {
         this.properties = properties;
     }
 
-    @PostConstruct
-    public void registerAppender() {
+    @Override
+    public void afterPropertiesSet() throws Exception {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
 
@@ -63,6 +63,31 @@ public class NanoLogAutoConfiguration {
 
         // Authentication
         appender.setToken(properties.getToken());
+
+        // Apply Filters
+        java.util.List<String> loggers = new java.util.ArrayList<>();
+        java.util.List<String> patterns = new java.util.ArrayList<>();
+
+        // Add Defaults
+        if (properties.isEnableDefaultFilters()) {
+            // Broad default exclusions to reduce noise
+            loggers.add("org.apache.");
+            loggers.add("org.springframework.");
+
+            // Specific patterns
+            patterns.add("Found NanoLog-related bean");
+        }
+
+        // Add User Config
+        if (properties.getExcludeLoggers() != null) {
+            loggers.addAll(properties.getExcludeLoggers());
+        }
+        if (properties.getExcludeMsgPatterns() != null) {
+            patterns.addAll(properties.getExcludeMsgPatterns());
+        }
+
+        appender.setExcludeLoggers(loggers);
+        appender.setExcludeMsgPatterns(patterns);
 
         appender.start();
 

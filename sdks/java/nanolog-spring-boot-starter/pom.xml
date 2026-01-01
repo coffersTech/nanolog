@@ -6,7 +6,7 @@
 
     <groupId>tech.coffers</groupId>
     <artifactId>nanolog-spring-boot-starter</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.5</version>
     <packaging>jar</packaging>
 
     <name>NanoLog Spring Boot Starter</name>
@@ -51,6 +51,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
             <version>${spring-boot.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Logback Classic -->
@@ -58,6 +59,7 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Lombok -->
@@ -79,6 +81,12 @@
 
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

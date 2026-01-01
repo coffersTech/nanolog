@@ -54,4 +54,22 @@ public class NanoLogProperties {
      * This token is sent in the Authorization header as Bearer token.
      */
     private String token = "";
+
+    /**
+     * List of logger name prefixes to exclude.
+     * E.g. "org.apache", "org.springframework.boot.actuate"
+     */
+    private java.util.List<String> excludeLoggers = new java.util.ArrayList<>();
+
+    /**
+     * List of Regex patterns to exclude specific log messages.
+     * E.g. "Completed 200 OK", "Health check failed"
+     */
+    private java.util.List<String> excludeMsgPatterns = new java.util.ArrayList<>();
+
+    /**
+     * Enable built-in default filters for noisy logs (Tomcat start, etc).
+     * Default: true
+     */
+    private boolean enableDefaultFilters = true;
 }
