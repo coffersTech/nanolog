@@ -14,6 +14,16 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 	// Map to store bucket counts: timestamp -> count
 	buckets := make(map[int64]int)
 
+	// Parse NanoQL query if present
+	var nqlNode interface{}
+	if filter.Query != "" {
+		node, err := ParseNanoQL(filter.Query)
+		if err != nil {
+			return nil, err
+		}
+		nqlNode = node
+	}
+
 	// 1. Scan MemTable
 	qe.mt.mu.RLock()
 	rowCount := len(qe.mt.TsCol)
@@ -23,39 +33,36 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 			continue
 		}
 
-		// Apply filters
-		// Note: This iterates full MemTable. For high performance, we could optimize search
-		// but MemTable is usually small.
-		matches := true
-		if filter.Level > 0 && qe.mt.LvlCol[i] != filter.Level {
-			matches = false
-		} else if filter.Service != "" && qe.mt.SvcCol[i] != filter.Service {
-			matches = false
-		} else if filter.Host != "" && qe.mt.HostCol[i] != filter.Host {
-			matches = false
-		} else if filter.Query != "" {
-			// Basic substring match (slow)
-			// Ideally we shouldn't scan message for histogram unless necessary
-			// Assuming message scan is needed if query is present
-			// For histogram, usually we just want volume of ERRORs, etc.
-			// Implementing correctly:
-			// strings.Contains(qe.mt.MsgCol[i], filter.Query) - handled by Filter check logic duplication here
-			// To avoid duplication, we rely on manual check or helper.
-			// Let's manually check for now.
-			// Actually strings package import needed?
-			// We can assume user wants filtering.
+		// Build row for NanoQL matching
+		row := LogRow{
+			Timestamp: ts,
+			Level:     qe.mt.LvlCol[i],
+			Service:   qe.mt.SvcCol[i],
+			Host:      qe.mt.HostCol[i],
+			Message:   qe.mt.MsgCol[i],
 		}
 
-		if matches {
-			// Bucketize
-			// Interval is in nanoseconds??
-			// User inputs: start(ms), end(ms), interval(ms/s?)
-			// Typically TS is nanoseconds in our system.
-			// Let's assume input args are already converted to Nanoseconds by the caller or we convert here.
-			// Assuming caller passes Nanoseconds for start/end/interval to match engine.
-			bucket := (ts / interval) * interval
-			buckets[bucket]++
+		// Apply NanoQL filter if present
+		if nqlNode != nil {
+			if !MatchNanoQL(nqlNode, &row) {
+				continue
+			}
+		} else {
+			// Legacy filter logic (when no NanoQL)
+			if filter.Level > 0 && row.Level != filter.Level {
+				continue
+			}
+			if filter.Service != "" && row.Service != filter.Service {
+				continue
+			}
+			if filter.Host != "" && row.Host != filter.Host {
+				continue
+			}
 		}
+
+		// Bucketize
+		bucket := (ts / interval) * interval
+		buckets[bucket]++
 	}
 	qe.mt.mu.RUnlock()
 
@@ -77,7 +84,7 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 			}
 		}
 
-		// Read file with filter
+		// Read file with basic filter (time pruning)
 		rows, err := qe.readerFunc(file, filter)
 		if err != nil {
 			continue
@@ -87,6 +94,14 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 			if row.Timestamp < start || row.Timestamp > end {
 				continue
 			}
+
+			// Apply NanoQL filter if present
+			if nqlNode != nil {
+				if !MatchNanoQL(nqlNode, &row) {
+					continue
+				}
+			}
+
 			bucket := (row.Timestamp / interval) * interval
 			buckets[bucket]++
 		}

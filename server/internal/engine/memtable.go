@@ -36,6 +36,14 @@ type MemTable struct {
 	currentRate  float64 // Logs per second
 }
 
+// MemTableStats holds a snapshot of MemTable metrics.
+type MemTableStats struct {
+	RowCount      int
+	SizeBytes     int64
+	LevelCounts   map[int]int64
+	ServiceCounts map[string]int64
+}
+
 // NewMemTable initializes MemTable with pre-allocated capacity.
 func NewMemTable() *MemTable {
 	cap := 4096
@@ -116,6 +124,12 @@ func (mt *MemTable) MaxTimestamp() int64 {
 
 // Search filters in-memory logs based on criteria, newest first.
 func (mt *MemTable) Search(filter Filter, limit int) []LogRow {
+	return mt.SearchWithNanoQL(filter, nil, limit)
+}
+
+// SearchWithNanoQL filters in-memory logs with optional NanoQL AST, newest first.
+// The nqlNode parameter should be a nanoql.Node or nil.
+func (mt *MemTable) SearchWithNanoQL(filter Filter, nqlNode interface{}, limit int) []LogRow {
 	mt.mu.RLock()
 	defer mt.mu.RUnlock()
 
@@ -124,11 +138,12 @@ func (mt *MemTable) Search(filter Filter, limit int) []LogRow {
 
 	// Scan backwards (newest first)
 	for i := rowCount - 1; i >= 0; i-- {
-		if len(result) >= limit {
+		if limit > 0 && len(result) >= limit {
 			break
 		}
 
 		ts := mt.TsCol[i]
+		// Time pruning (kept for performance)
 		if filter.MinTime > 0 && ts < filter.MinTime {
 			continue
 		}
@@ -137,41 +152,50 @@ func (mt *MemTable) Search(filter Filter, limit int) []LogRow {
 		}
 
 		lvl := mt.LvlCol[i]
-		if filter.Level > 0 && lvl != filter.Level {
-			continue
-		}
-
 		svc := mt.SvcCol[i]
-		if filter.Service != "" && svc != filter.Service {
-			continue
-		}
-
 		host := mt.HostCol[i]
-		if filter.Host != "" && host != filter.Host {
-			continue
-		}
-
 		msg := mt.MsgCol[i]
-		if filter.Query != "" && !strings.Contains(msg, filter.Query) {
-			continue
-		}
 
-		result = append(result, LogRow{
+		row := LogRow{
 			Timestamp: ts,
 			Level:     lvl,
 			Service:   svc,
 			Host:      host,
 			Message:   msg,
-		})
+		}
+
+		// Apply NanoQL filter if provided
+		if nqlNode != nil {
+			if !MatchNanoQL(nqlNode, &row) {
+				continue
+			}
+		} else {
+			// Legacy filter logic (when no NanoQL)
+			if filter.Level > 0 && lvl != filter.Level {
+				continue
+			}
+			if filter.Service != "" && svc != filter.Service {
+				continue
+			}
+			if filter.Host != "" && host != filter.Host {
+				continue
+			}
+			if filter.Query != "" && !strings.Contains(msg, filter.Query) {
+				continue
+			}
+		}
+
+		result = append(result, row)
 	}
 
 	return result
 }
 
 // EncodeLevel converts string level to uint8.
+// Supports: DEBUG/TRACE, INFO, WARN/WARNING, ERROR, FATAL/SEVERE
 func EncodeLevel(l string) uint8 {
 	switch strings.ToUpper(l) {
-	case "DEBUG":
+	case "DEBUG", "TRACE": // TRACE is Java's finest level, map to DEBUG
 		return LevelDebug
 	case "INFO":
 		return LevelInfo
@@ -179,10 +203,10 @@ func EncodeLevel(l string) uint8 {
 		return LevelWarn
 	case "ERROR":
 		return LevelError
-	case "FATAL":
+	case "FATAL", "SEVERE": // SEVERE is Java's equivalent of FATAL
 		return LevelFatal
 	default:
-		return LevelInfo
+		return LevelUnknown // Unknown level instead of defaulting to INFO
 	}
 }
 
@@ -223,4 +247,27 @@ func (mt *MemTable) GetIngestionRate() float64 {
 	mt.mu.RLock()
 	defer mt.mu.RUnlock()
 	return mt.currentRate
+}
+
+// GetStats returns a snapshot of the current MemTable statistics.
+func (mt *MemTable) GetStats() MemTableStats {
+	mt.mu.RLock()
+	defer mt.mu.RUnlock()
+
+	stats := MemTableStats{
+		RowCount:      len(mt.TsCol),
+		SizeBytes:     atomic.LoadInt64(&mt.SizeBytes),
+		LevelCounts:   make(map[int]int64),
+		ServiceCounts: make(map[string]int64),
+	}
+
+	for i := 0; i < stats.RowCount; i++ {
+		lvl := int(mt.LvlCol[i])
+		stats.LevelCounts[lvl]++
+
+		svc := mt.SvcCol[i]
+		stats.ServiceCounts[svc]++
+	}
+
+	return stats
 }

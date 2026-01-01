@@ -10,6 +10,14 @@ type LogRow struct {
 	Message   string `json:"message"`
 }
 
+// Getter methods to implement nanoql.LogRecord interface
+
+func (r *LogRow) GetTimestamp() int64 { return r.Timestamp }
+func (r *LogRow) GetLevel() uint8     { return r.Level }
+func (r *LogRow) GetService() string  { return r.Service }
+func (r *LogRow) GetHost() string     { return r.Host }
+func (r *LogRow) GetMessage() string  { return r.Message }
+
 // Filter defines criteria for log retrieval.
 type Filter struct {
 	MinTime int64  `json:"min_time"`
@@ -17,5 +25,5 @@ type Filter struct {
 	Level   uint8  `json:"level"`
 	Service string `json:"service"`
 	Host    string `json:"host"`
-	Query   string `json:"q"` // Global keyword search in message
+	Query   string `json:"q"` // NanoQL query string
 }

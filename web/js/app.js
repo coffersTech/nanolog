@@ -88,6 +88,24 @@ createApp({
         const timeParams = ref({ start: null, end: null });
         const timeRangeLabel = ref('');
         const histogramTotal = ref(0);
+        const searchError = ref(''); // NanoQL syntax error message
+
+        // Context Modal
+        const contextModal = ref({ show: false, loading: false, pre: [], anchor: null, post: [], service: '', limit: 10 });
+        const openContextModal = async (logItem) => {
+            contextModal.value = { show: true, loading: true, pre: [], anchor: null, post: [], service: logItem.service, limit: 10 };
+            try {
+                const response = await apiFetch(`/api/context?ts=${logItem.timestamp}&service=${encodeURIComponent(logItem.service)}&limit=10`);
+                const data = await response.json();
+                contextModal.value.pre = data.pre || [];
+                contextModal.value.anchor = data.anchor;
+                contextModal.value.post = data.post || [];
+            } catch (e) {
+                console.error('Context fetch error:', e);
+            } finally {
+                contextModal.value.loading = false;
+            }
+        };
 
         // Confirmation Modal
         const confirmModal = ref({ show: false, title: '', message: '', action: null });
@@ -209,41 +227,12 @@ createApp({
             const params = new URLSearchParams();
             params.append('limit', '100');
 
-            // Parse query string if provided
-            if (q) {
-                const parts = q.split(/\s+/);
-                let textSearch = [];
-
-                parts.forEach(part => {
-                    if (part.includes('=')) {
-                        const [key, val] = part.split('=');
-                        const k = key.toLowerCase();
-                        if (k === 'level') {
-                            const lvls = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3, 'FATAL': 4 };
-                            const l = lvls[val.toUpperCase()];
-                            params.append('level', l !== undefined ? l : val);
-                        } else if (k === 'service' || k === 'svc') {
-                            params.append('service', val);
-                        } else if (k === 'host' || k === 'ip' || k === 'hostname') {
-                            params.append('host', val);
-                        } else if (k === 'start' || k === 'min_ts') {
-                            params.append('start', val);
-                        } else if (k === 'end' || k === 'max_ts') {
-                            params.append('end', val);
-                        } else {
-                            textSearch.push(part);
-                        }
-                    } else {
-                        textSearch.push(part);
-                    }
-                });
-
-                if (textSearch.length > 0) {
-                    params.append('q', textSearch.join(' '));
-                }
+            // Pass entire query string as NanoQL (q parameter)
+            if (q && q.trim()) {
+                params.append('q', q.trim());
             }
 
-            // Always append time params if available (this was being skipped before!)
+            // Always append time params if available
             if (timeParams.value.start) params.append('start', timeParams.value.start);
             if (timeParams.value.end) params.append('end', timeParams.value.end);
 
@@ -382,9 +371,19 @@ createApp({
             if (loading.value && logs.value.length > 0) return;
             loading.value = true;
             error.value = null;
+            searchError.value = ''; // Clear previous search error
             try {
                 const queryString = parseSearchQuery(searchQuery.value);
                 const response = await apiFetch(`/api/search?${queryString}`);
+
+                // Handle syntax errors (400 Bad Request)
+                if (response.status === 400) {
+                    const errorText = await response.text();
+                    searchError.value = errorText || 'Invalid query syntax';
+                    logs.value = [];
+                    return;
+                }
+
                 const data = await response.json();
                 logs.value = data || [];
             } catch (e) {
@@ -428,6 +427,41 @@ createApp({
             try {
                 return JSON.stringify(JSON.parse(str), null, 2);
             } catch (e) { return str; }
+        };
+
+        // Extract search terms from NanoQL query for highlighting
+        const getSearchTerms = () => {
+            const q = searchQuery.value;
+            if (!q) return [];
+            const terms = [];
+            // Extract quoted strings
+            const quotedMatches = q.match(/"([^"]+)"/g);
+            if (quotedMatches) {
+                quotedMatches.forEach(m => terms.push(m.replace(/"/g, '')));
+            }
+            // Extract value parts from key:value patterns
+            const kvMatches = q.match(/\w+:([^\s"]+|"[^"]+")/g);
+            if (kvMatches) {
+                kvMatches.forEach(m => {
+                    const val = m.split(':')[1]?.replace(/"/g, '');
+                    if (val && !['AND', 'OR', 'NOT'].includes(val.toUpperCase())) {
+                        terms.push(val);
+                    }
+                });
+            }
+            return [...new Set(terms)];
+        };
+
+        // Highlight matching text in a string
+        const highlightText = (text) => {
+            const terms = getSearchTerms();
+            if (!terms.length || !text) return text;
+            let result = text;
+            terms.forEach(term => {
+                const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                result = result.replace(regex, '<span class="bg-yellow-900 text-yellow-100 px-0.5 rounded">$1</span>');
+            });
+            return result;
         };
 
         const getLevelClass = (l) => ({
@@ -1085,7 +1119,8 @@ createApp({
             selectedTimeRange, showTimeRangeDropdown, customTimeRange,
             recentCustomRanges, timeParams, timeRangeLabel,
             updateTimeRange, applyCustomTimeRange, selectRecentCustom,
-            showRecentHistory, histogramTotal
+            showRecentHistory, histogramTotal, searchError, highlightText,
+            contextModal, openContextModal
         };
     }
 }).mount('#app');

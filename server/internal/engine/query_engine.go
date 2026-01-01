@@ -29,9 +29,12 @@ type QueryEngine struct {
 	// Configuration
 	MaxTableSize int64
 
-	// Stats Cache
-	statsCache map[string]SystemStats
-	mu         sync.RWMutex
+	// mu protects mt pointer swaps
+	mu sync.RWMutex
+
+	// Persistent Stats
+	globalStats PersistentStats
+	statsLock   sync.RWMutex // Protects globalStats
 
 	// WAL for crash recovery
 	wal *WAL
@@ -57,7 +60,7 @@ func NewQueryEngine(dataDir string, mt *MemTable, readerFunc SnapshotReaderFunc,
 		writerFunc:   writerFunc,
 		Retention:    retention,
 		MaxTableSize: 64 * 1024 * 1024, // 64MB Default
-		statsCache:   make(map[string]SystemStats),
+		globalStats:  loadPersistentStats(dataDir),
 		wal:          wal,
 	}
 
@@ -76,8 +79,8 @@ func NewQueryEngine(dataDir string, mt *MemTable, readerFunc SnapshotReaderFunc,
 		}
 	}
 
-	// Initial cache population
-	qe.loadStatsCache()
+	// Initial cache population (not needed with persistent stats)
+	// qe.loadStatsCache()
 
 	return qe
 }
@@ -98,21 +101,54 @@ func (qe *QueryEngine) Flush() error {
 	filename := fmt.Sprintf("log_%d_%d.nano", minTs, maxTs)
 	path := filepath.Join(qe.dataDir, filename)
 
-	// Compute stats before reset
-	rows := qe.mt.Search(Filter{}, -1)
-	fStats := qe.computeStatsFromRows(rows)
-
+	// === Step 1: Write file to disk ===
 	if err := qe.writerFunc(path, qe.mt); err != nil {
 		return err
 	}
 
-	// Update cache
-	qe.mu.Lock()
-	qe.statsCache[filename] = fStats
-	qe.mu.Unlock()
+	// === Step 2: Atomic stats transfer ===
+	qe.mt.mu.RLock()
+	rowCount := len(qe.mt.TsCol)
+	levelCounts := make(map[int]int64)
+	serviceCounts := make(map[string]int64)
+	var totalBytes int64
 
+	for i := 0; i < rowCount; i++ {
+		lvl := int(qe.mt.LvlCol[i])
+		levelCounts[lvl]++
+		svc := qe.mt.SvcCol[i]
+		serviceCounts[svc]++
+		totalBytes += int64(len(qe.mt.MsgCol[i]) + len(svc) + len(qe.mt.HostCol[i]) + 9)
+	}
+	qe.mt.mu.RUnlock()
+
+	// Atomically update global stats
+	qe.statsLock.Lock()
+	qe.globalStats.TotalLogs += int64(rowCount)
+	qe.globalStats.TotalBytes += totalBytes
+	for k, v := range levelCounts {
+		qe.globalStats.LevelCounts[k] += v
+	}
+	for k, v := range serviceCounts {
+		qe.globalStats.ServiceCounts[k] += v
+	}
+	qe.statsLock.Unlock()
+
+	// === Step 3: Persist stats to disk ===
+	if err := savePersistentStats(qe.dataDir, qe.globalStats); err != nil {
+		log.Printf("Stats persist error: %v", err)
+	}
+
+	// === Step 4: Reset MemTable and WAL ===
 	qe.mt.Reset()
-	log.Printf("Flushed to disk: %s", filename)
+
+	if qe.wal != nil {
+		if err := qe.wal.Reset(); err != nil {
+			log.Printf("WAL reset error: %v", err)
+		}
+	}
+
+	log.Printf("Flushed to disk: %s (%d rows)", filename, rowCount)
 	return nil
 }
 
@@ -179,45 +215,84 @@ func (qe *QueryEngine) flushMemTable(mt *MemTable) {
 	filename := fmt.Sprintf("log_%d_%d.nano", minTs, maxTs)
 	path := filepath.Join(qe.dataDir, filename)
 
-	// Compute stats for cache
-	rows := mt.Search(Filter{}, -1)
-	fStats := qe.computeStatsFromRows(rows)
-
+	// === Step 1: Write file to disk ===
 	if err := qe.writerFunc(path, mt); err != nil {
 		log.Printf("Background flush write error: %v", err)
 		return
 	}
 
-	// Store in cache
-	qe.mu.Lock()
-	qe.statsCache[filename] = fStats
-	qe.mu.Unlock()
+	// === Step 2: Atomic stats transfer ===
+	// Get snapshot of MemTable stats before any cleanup
+	mt.mu.RLock()
+	rowCount := len(mt.TsCol)
+	levelCounts := make(map[int]int64)
+	serviceCounts := make(map[string]int64)
+	var totalBytes int64
 
-	// Truncate WAL after successful write
+	for i := 0; i < rowCount; i++ {
+		lvl := int(mt.LvlCol[i])
+		levelCounts[lvl]++
+
+		svc := mt.SvcCol[i]
+		serviceCounts[svc]++
+
+		// Estimate bytes
+		totalBytes += int64(len(mt.MsgCol[i]) + len(svc) + len(mt.HostCol[i]) + 9)
+	}
+	mt.mu.RUnlock()
+
+	// Atomically update global stats
+	qe.statsLock.Lock()
+	qe.globalStats.TotalLogs += int64(rowCount)
+	qe.globalStats.TotalBytes += totalBytes
+	for k, v := range levelCounts {
+		qe.globalStats.LevelCounts[k] += v
+	}
+	for k, v := range serviceCounts {
+		qe.globalStats.ServiceCounts[k] += v
+	}
+	qe.statsLock.Unlock()
+
+	// === Step 3: Persist stats to disk ===
+	if err := savePersistentStats(qe.dataDir, qe.globalStats); err != nil {
+		log.Printf("Stats persist error: %v", err)
+	}
+
+	// === Step 4: Cleanup - WAL reset (after stats are safely persisted) ===
 	if qe.wal != nil {
 		if err := qe.wal.Reset(); err != nil {
 			log.Printf("WAL reset error: %v", err)
 		}
 	}
 
-	log.Printf("Background flush completed: %s", filename)
+	log.Printf("Background flush completed: %s (%d rows)", filename, rowCount)
 }
 
 // ExecuteScan scans memory and then .nano files and returns up to `limit` rows matching the filter.
 func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
+	// Parse NanoQL query if present
+	var nqlNode interface{}
+	if filter.Query != "" {
+		node, err := ParseNanoQL(filter.Query)
+		if err != nil {
+			return nil, fmt.Errorf("invalid query syntax: %w", err)
+		}
+		nqlNode = node
+	}
+
 	// 1. Grab current MemTable under lock to avoid inconsistency if swapped
 	qe.mu.RLock()
 	mt := qe.mt
 	qe.mu.RUnlock()
 
-	// 2. Search MemTable first (memory)
-	result := mt.Search(filter, limit)
+	// 2. Search MemTable first (memory) with NanoQL
+	result := mt.SearchWithNanoQL(filter, nqlNode, limit)
 
 	if len(result) >= limit {
 		return result, nil
 	}
 
-	// 2. Search persisted files
+	// 3. Search persisted files
 	files, err := qe.findNanoFiles()
 	if err != nil {
 		return result, err
@@ -249,12 +324,20 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 			continue
 		}
 
+		// Apply NanoQL filter to disk results
+		if nqlNode != nil {
+			filteredRows := make([]LogRow, 0, len(rows))
+			for i := range rows {
+				if MatchNanoQL(nqlNode, &rows[i]) {
+					filteredRows = append(filteredRows, rows[i])
+				}
+			}
+			rows = filteredRows
+		}
+
 		// Append rows up to limit
 		remaining := limit - len(result)
 		if len(rows) <= remaining {
-			// Files internally are sorted ASC, but we want DESC result.
-			// However, for simplicity now we just append.
-			// High performance result merging would be better.
 			result = append(result, rows...)
 		} else {
 			result = append(result, rows[:remaining]...)
@@ -285,65 +368,9 @@ func (qe *QueryEngine) findNanoFiles() ([]string, error) {
 	return files, nil
 }
 
-func (qe *QueryEngine) loadStatsCache() {
-	files, err := qe.findNanoFiles()
-	if err != nil {
-		log.Printf("Failed to load stats cache: %v", err)
-		return
-	}
+// computeStatsFromRows and loadStatsCache are removed in favor of PersistentStats
 
-	corruptedCount := 0
-	for _, file := range files {
-		// Optimization: Read all rows to aggregate stats.
-		rows, err := qe.readerFunc(file, Filter{})
-		if err != nil {
-			// If file is corrupted, we log and skip it.
-			// In the future, we could move it to a 'corrupted' subfolder.
-			log.Printf("Skipping corrupted file %s: %v", filepath.Base(file), err)
-			corruptedCount++
-			continue
-		}
-
-		fStats := qe.computeStatsFromRows(rows)
-
-		qe.mu.Lock()
-		qe.statsCache[filepath.Base(file)] = fStats
-		qe.mu.Unlock()
-	}
-
-	if corruptedCount > 0 {
-		log.Printf("Loaded stats cache: %d files loaded, %d corrupted files skipped", len(qe.statsCache), corruptedCount)
-	} else {
-		log.Printf("Loaded stats cache for %d files", len(qe.statsCache))
-	}
-}
-
-func (qe *QueryEngine) computeStatsFromRows(rows []LogRow) SystemStats {
-	s := SystemStats{
-		TotalLogs:   int64(len(rows)),
-		LevelDist:   make(map[string]int),
-		TopServices: make(map[string]int),
-	}
-	for _, r := range rows {
-		lvlStr := "UNKNOWN"
-		switch r.Level {
-		case LevelDebug:
-			lvlStr = "DEBUG"
-		case LevelInfo:
-			lvlStr = "INFO"
-		case LevelWarn:
-			lvlStr = "WARN"
-		case LevelError:
-			lvlStr = "ERROR"
-		case LevelFatal:
-			lvlStr = "FATAL"
-		}
-		s.LevelDist[lvlStr]++
-		s.TopServices[r.Service]++
-	}
-	return s
-}
-
+// parseTsFromFilename extracts min and max timestamps from a log filename.
 func parseTsFromFilename(filename string) (int64, int64, error) {
 	base := filepath.Base(filename)
 	if !strings.HasPrefix(base, "log_") || !strings.HasSuffix(base, ".nano") {
@@ -360,4 +387,115 @@ func parseTsFromFilename(filename string) (int64, int64, error) {
 		return 0, 0, fmt.Errorf("invalid timestamps")
 	}
 	return minTs, maxTs, nil
+}
+
+// ContextResult represents the result of a context query.
+type ContextResult struct {
+	Pre    []LogRow `json:"pre"`    // Logs before the anchor
+	Anchor *LogRow  `json:"anchor"` // The target log
+	Post   []LogRow `json:"post"`   // Logs after the anchor
+}
+
+// GetContext retrieves surrounding logs around a specific timestamp for a service.
+func (qe *QueryEngine) GetContext(ts int64, service string, limit int) (*ContextResult, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	result := &ContextResult{
+		Pre:  make([]LogRow, 0, limit),
+		Post: make([]LogRow, 0, limit),
+	}
+
+	// Collect all matching logs from memory and disk
+	filter := Filter{Service: service}
+
+	// Get current MemTable
+	qe.mu.RLock()
+	mt := qe.mt
+	qe.mu.RUnlock()
+
+	// Search MemTable (returns newest first)
+	memRows := mt.Search(filter, -1)
+
+	// Search disk files
+	files, err := qe.findNanoFiles()
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort files by timestamp (newest first)
+	sort.Slice(files, func(i, j int) bool {
+		return files[i] > files[j]
+	})
+
+	var diskRows []LogRow
+	for _, file := range files {
+		rows, err := qe.readerFunc(file, filter)
+		if err != nil {
+			continue
+		}
+		diskRows = append(diskRows, rows...)
+	}
+
+	// Combine and sort all rows by timestamp (ascending for easier processing)
+	allRows := append(memRows, diskRows...)
+	sort.Slice(allRows, func(i, j int) bool {
+		return allRows[i].Timestamp < allRows[j].Timestamp
+	})
+
+	// Find anchor position
+	anchorIdx := -1
+	for i, row := range allRows {
+		if row.Timestamp == ts {
+			anchorIdx = i
+			result.Anchor = &allRows[i]
+			break
+		}
+	}
+
+	if anchorIdx == -1 {
+		// Anchor not found, try to find closest
+		for i, row := range allRows {
+			if row.Timestamp >= ts {
+				if i > 0 && (ts-allRows[i-1].Timestamp) < (row.Timestamp-ts) {
+					anchorIdx = i - 1
+				} else {
+					anchorIdx = i
+				}
+				result.Anchor = &allRows[anchorIdx]
+				break
+			}
+		}
+	}
+
+	if result.Anchor == nil && len(allRows) > 0 {
+		// Timestamp is beyond all logs, use last one
+		anchorIdx = len(allRows) - 1
+		result.Anchor = &allRows[anchorIdx]
+	}
+
+	if result.Anchor == nil {
+		return result, nil // No logs found
+	}
+
+	// Collect pre (before anchor)
+	preStart := anchorIdx - limit
+	if preStart < 0 {
+		preStart = 0
+	}
+	for i := preStart; i < anchorIdx; i++ {
+		result.Pre = append(result.Pre, allRows[i])
+	}
+
+	// Collect post (after anchor)
+	postEnd := anchorIdx + limit + 1
+	if postEnd > len(allRows) {
+		postEnd = len(allRows)
+	}
+	for i := anchorIdx + 1; i < postEnd; i++ {
+		result.Post = append(result.Post, allRows[i])
+	}
+
+	return result, nil
 }

@@ -104,6 +104,7 @@ func (s *IngestServer) RegisterConsoleRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/search", s.AuthMiddleware(http.HandlerFunc(s.handleQuery)))
 	mux.Handle("/api/histogram", s.AuthMiddleware(http.HandlerFunc(s.handleHistogram)))
 	mux.Handle("/api/stats", s.AuthMiddleware(http.HandlerFunc(s.handleStats)))
+	mux.Handle("/api/context", s.AuthMiddleware(http.HandlerFunc(s.handleContext)))
 
 	// Static file serving for web directory
 	if s.webDir != "" {
@@ -671,7 +672,12 @@ func (s *IngestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.queryEngine.ExecuteScan(filter, limit)
 	if err != nil {
 		log.Printf("Query error: %v", err)
-		http.Error(w, "Query failed", http.StatusInternalServerError)
+		// Return 400 for syntax errors, 500 for other errors
+		if strings.Contains(err.Error(), "invalid query syntax") {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, "Query failed", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -801,4 +807,47 @@ func (s *IngestServer) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+// handleContext returns surrounding logs around a specific log entry.
+func (s *IngestServer) handleContext(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	q := r.URL.Query()
+
+	// Parse timestamp (required)
+	tsStr := q.Get("ts")
+	if tsStr == "" {
+		http.Error(w, "Missing required parameter: ts", http.StatusBadRequest)
+		return
+	}
+	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid timestamp format", http.StatusBadRequest)
+		return
+	}
+
+	// Parse service (optional but recommended)
+	service := q.Get("service")
+
+	// Parse limit (default 10)
+	limit := 10
+	if limitStr := q.Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	// Call engine
+	result, err := s.queryEngine.GetContext(ts, service, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }

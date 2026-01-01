@@ -1,11 +1,20 @@
 package engine
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 )
 
-// SystemStats contains high-level system metrics.
+// PersistentStats holds cumulative statistics that survive restarts.
+type PersistentStats struct {
+	TotalLogs     int64            `json:"total_logs"`
+	TotalBytes    int64            `json:"total_bytes"`
+	LevelCounts   map[int]int64    `json:"level_counts"`   // Level (uint8) -> count
+	ServiceCounts map[string]int64 `json:"service_counts"` // Service name -> count
+}
+
+// SystemStats contains high-level system metrics for API response.
 type SystemStats struct {
 	IngestionRate float64        `json:"ingestion_rate"` // logs/sec
 	TotalLogs     int64          `json:"total_logs"`     // total count
@@ -14,36 +23,96 @@ type SystemStats struct {
 	TopServices   map[string]int `json:"top_services"`   // e.g. "order-svc": 50
 }
 
-// GetStats aggregates current system statistics from cache and MemTable.
-func (qe *QueryEngine) GetStats() SystemStats {
-	stats := SystemStats{
-		LevelDist:   make(map[string]int),
-		TopServices: make(map[string]int),
+// statsFileName is the filename for persisted stats
+const statsFileName = ".nanolog.stats"
+
+// loadPersistentStats reads stats from disk.
+func loadPersistentStats(dataDir string) PersistentStats {
+	stats := PersistentStats{
+		LevelCounts:   make(map[int]int64),
+		ServiceCounts: make(map[string]int64),
 	}
 
-	// 1. Grab current MemTable under lock to avoid inconsistency if swapped
+	path := filepath.Join(dataDir, statsFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// File doesn't exist or can't be read, return empty stats
+		return stats
+	}
+
+	if err := json.Unmarshal(data, &stats); err != nil {
+		// Corrupted file, return empty stats
+		return stats
+	}
+
+	// Ensure maps are initialized
+	if stats.LevelCounts == nil {
+		stats.LevelCounts = make(map[int]int64)
+	}
+	if stats.ServiceCounts == nil {
+		stats.ServiceCounts = make(map[string]int64)
+	}
+
+	return stats
+}
+
+// savePersistentStats writes stats to disk atomically.
+func savePersistentStats(dataDir string, stats PersistentStats) error {
+	data, err := json.MarshalIndent(stats, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(dataDir, statsFileName)
+	tmpPath := path + ".tmp"
+
+	// Write to temp file first
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		return err
+	}
+
+	// Atomic rename
+	return os.Rename(tmpPath, path)
+}
+func (qe *QueryEngine) GetStats() SystemStats {
+	// 1. Get snapshot of current MemTable stats
 	qe.mu.RLock()
 	mt := qe.mt
 	qe.mu.RUnlock()
+	memStats := mt.GetStats()
 
-	// 2. Ingestion Rate (from MemTable)
-	stats.IngestionRate = mt.GetIngestionRate()
+	// 2. Get persistent stats under lock
+	qe.statsLock.RLock()
+	diskStats := qe.globalStats
+	qe.statsLock.RUnlock()
 
-	// 3. Aggregate from Cache (Persisted)
-	qe.mu.RLock()
-	var totalPersistedLogs int64
-	for _, fStats := range qe.statsCache {
-		totalPersistedLogs += fStats.TotalLogs
-		for lvl, count := range fStats.LevelDist {
-			stats.LevelDist[lvl] += count
-		}
-		for svc, count := range fStats.TopServices {
-			stats.TopServices[svc] += count
-		}
+	// 3. Merge results
+	stats := SystemStats{
+		IngestionRate: mt.GetIngestionRate(),
+		TotalLogs:     diskStats.TotalLogs + int64(memStats.RowCount),
+		LevelDist:     make(map[string]int),
+		TopServices:   make(map[string]int),
 	}
-	qe.mu.RUnlock()
 
-	// 4. Disk Usage
+	// Merge Level Distributions
+	for lvl, count := range diskStats.LevelCounts {
+		lvlStr := levelIntToString(lvl)
+		stats.LevelDist[lvlStr] += int(count)
+	}
+	for lvl, count := range memStats.LevelCounts {
+		lvlStr := levelIntToString(lvl)
+		stats.LevelDist[lvlStr] += int(count)
+	}
+
+	// Merge Service Counters
+	for svc, count := range diskStats.ServiceCounts {
+		stats.TopServices[svc] += int(count)
+	}
+	for svc, count := range memStats.ServiceCounts {
+		stats.TopServices[svc] += int(count)
+	}
+
+	// 4. Calculate actual Disk Usage
 	var size int64
 	_ = filepath.Walk(qe.dataDir, func(_ string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
@@ -53,35 +122,23 @@ func (qe *QueryEngine) GetStats() SystemStats {
 	})
 	stats.DiskUsage = size
 
-	// 5. MemTable Stats (Live)
-	mt.mu.RLock()
-	defer mt.mu.RUnlock()
-
-	rowCount := len(mt.TsCol)
-	stats.TotalLogs = totalPersistedLogs + int64(rowCount)
-
-	for i := 0; i < rowCount; i++ {
-		// Service
-		svc := mt.SvcCol[i]
-		stats.TopServices[svc]++
-
-		// Level
-		lvl := mt.LvlCol[i]
-		lvlStr := "UNKNOWN"
-		switch lvl {
-		case LevelDebug:
-			lvlStr = "DEBUG"
-		case LevelInfo:
-			lvlStr = "INFO"
-		case LevelWarn:
-			lvlStr = "WARN"
-		case LevelError:
-			lvlStr = "ERROR"
-		case LevelFatal:
-			lvlStr = "FATAL"
-		}
-		stats.LevelDist[lvlStr]++
-	}
-
 	return stats
+}
+
+// levelIntToString converts level int to string
+func levelIntToString(lvl int) string {
+	switch uint8(lvl) {
+	case LevelDebug:
+		return "DEBUG"
+	case LevelInfo:
+		return "INFO"
+	case LevelWarn:
+		return "WARN"
+	case LevelError:
+		return "ERROR"
+	case LevelFatal:
+		return "FATAL"
+	default:
+		return "UNKNOWN"
+	}
 }
