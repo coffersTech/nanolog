@@ -622,7 +622,10 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			msg = string(val.GetStringBytes("msg"))
 		}
 
-		s.queryEngine.Ingest(tsVal, levelStr, serviceStr, hostStr, msg)
+		// Extract trace_id for distributed tracing
+		traceID := string(val.GetStringBytes("trace_id"))
+
+		s.queryEngine.Ingest(tsVal, levelStr, serviceStr, hostStr, msg, traceID)
 	}
 
 	// Handle batch (Array) or single (Object)

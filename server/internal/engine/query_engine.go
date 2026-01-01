@@ -72,7 +72,7 @@ func NewQueryEngine(dataDir string, mt *MemTable, readerFunc SnapshotReaderFunc,
 			for _, row := range recoveredRows {
 				// Re-append to current MemTable
 				// Note: We avoid calling qe.Ingest here to prevent re-writing to WAL
-				qe.mt.Append(row.Timestamp, DecodeLevel(row.Level), row.Service, row.Host, row.Message)
+				qe.mt.Append(row.Timestamp, DecodeLevel(row.Level), row.Service, row.Host, row.Message, row.TraceID)
 			}
 		} else if err != nil {
 			log.Printf("WAL replay warning: %v", err)
@@ -153,7 +153,7 @@ func (qe *QueryEngine) Flush() error {
 }
 
 // Ingest adds a log row to the WAL and MemTable, triggering a background flush if needed.
-func (qe *QueryEngine) Ingest(ts int64, level, service, host, msg string) {
+func (qe *QueryEngine) Ingest(ts int64, level, service, host, msg, traceID string) {
 	// 1. Write to WAL first for durability
 	if qe.wal != nil {
 		if err := qe.wal.Write(ts, level, service, host, msg); err != nil {
@@ -162,7 +162,7 @@ func (qe *QueryEngine) Ingest(ts int64, level, service, host, msg string) {
 	}
 
 	// 2. Append to MemTable
-	qe.mt.Append(ts, level, service, host, msg)
+	qe.mt.Append(ts, level, service, host, msg, traceID)
 
 	// Periodically log size for user visibility (every ~10MB)
 	currentSize := qe.mt.GetSize()

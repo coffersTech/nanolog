@@ -8,6 +8,7 @@ type LogRow struct {
 	Service   string `json:"service"`
 	Host      string `json:"host"`
 	Message   string `json:"message"`
+	TraceID   string `json:"trace_id,omitempty"`
 }
 
 // Getter methods to implement nanoql.LogRecord interface
@@ -17,6 +18,7 @@ func (r *LogRow) GetLevel() uint8     { return r.Level }
 func (r *LogRow) GetService() string  { return r.Service }
 func (r *LogRow) GetHost() string     { return r.Host }
 func (r *LogRow) GetMessage() string  { return r.Message }
+func (r *LogRow) GetTraceID() string  { return r.TraceID }
 
 // Filter defines criteria for log retrieval.
 type Filter struct {
