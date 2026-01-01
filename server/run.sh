@@ -27,21 +27,21 @@ fi
 case "$ACTION" in
     build)
         echo -e "${YELLOW}Building...${NC}"
-        go build -o bin/nanolog cmd/nanolog/main.go
+        CGO_ENABLED=0 go build -o bin/nanolog cmd/nanolog/main.go
         echo -e "${GREEN}Build complete: bin/nanolog${NC}"
         ;;
     run)
         echo -e "${YELLOW}Running in development mode...${NC}"
-        go run cmd/nanolog/main.go $ARGS
+        CGO_ENABLED=0 go run cmd/nanolog/main.go $ARGS
         ;;
     start)
         echo -e "${YELLOW}Building and starting...${NC}"
-        go build -o bin/nanolog cmd/nanolog/main.go
+        CGO_ENABLED=0 go build -o bin/nanolog cmd/nanolog/main.go
         ./bin/nanolog $ARGS
         ;;
     standalone)
         echo -e "${YELLOW}Starting Standalone Mode (Full Functionality)...${NC}"
-        go build -o bin/nanolog cmd/nanolog/main.go
+        CGO_ENABLED=0 go build -o bin/nanolog cmd/nanolog/main.go
         ./bin/nanolog --role=standalone $ARGS
         ;;
     console)
@@ -49,12 +49,12 @@ case "$ACTION" in
         if [[ -z "$DATA_NODES" ]]; then
             echo -e "${YELLOW}Tip: Set DATA_NODES env or pass --data-nodes to specify ingester nodes.${NC}"
         fi
-        go build -o bin/nanolog cmd/nanolog/main.go
+        CGO_ENABLED=0 go build -o bin/nanolog cmd/nanolog/main.go
         ./bin/nanolog --role=console $ARGS
         ;;
     ingester)
         echo -e "${YELLOW}Starting Ingester Mode (Storage & Local Query)...${NC}"
-        go build -o bin/nanolog cmd/nanolog/main.go
+        CGO_ENABLED=0 go build -o bin/nanolog cmd/nanolog/main.go
         ./bin/nanolog --role=ingester $ARGS
         ;;
     test)
