@@ -20,6 +20,7 @@ import (
 	"github.com/coffersTech/nanolog/server/internal/cluster"
 	"github.com/coffersTech/nanolog/server/internal/controller"
 	"github.com/coffersTech/nanolog/server/internal/engine"
+	"github.com/coffersTech/nanolog/server/internal/registry"
 	"github.com/valyala/fastjson"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -44,9 +45,10 @@ type IngestServer struct {
 	ingestRate    int64 // Requests per second (updated periodically)
 	role          string
 	aggregator    *cluster.Aggregator
+	registry      *registry.Store
 }
 
-func NewIngestServer(qe *engine.QueryEngine, ms *controller.Store, webDir string, dataDir string, role string, aggregator *cluster.Aggregator) *IngestServer {
+func NewIngestServer(qe *engine.QueryEngine, ms *controller.Store, webDir string, dataDir string, role string, aggregator *cluster.Aggregator, reg *registry.Store) *IngestServer {
 	return &IngestServer{
 		queryEngine: qe,
 		metaStore:   ms,
@@ -55,6 +57,7 @@ func NewIngestServer(qe *engine.QueryEngine, ms *controller.Store, webDir string
 		sessions:    make(map[string]UserSession),
 		role:        role,
 		aggregator:  aggregator,
+		registry:    reg,
 	}
 }
 
@@ -110,6 +113,13 @@ func (s *IngestServer) RegisterConsoleRoutes(mux *http.ServeMux) {
 	if s.webDir != "" {
 		fs := http.FileServer(http.Dir(s.webDir))
 		mux.Handle("/", fs)
+	}
+
+	// Registry Routes (if enabled)
+	if s.registry != nil {
+		regServer := registry.NewServer(s.registry)
+		mux.HandleFunc("/api/registry/handshake", regServer.HandleHandshake)
+		mux.HandleFunc("/api/registry/instances", regServer.HandleListInstances)
 	}
 }
 
@@ -570,6 +580,15 @@ func (s *IngestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	// Log request entry
 	// log.Printf("Incoming request from %s", r.RemoteAddr) // Reduce noise
 	atomic.AddInt64(&s.ingestCounter, 1)
+
+	// Passive Heartbeat: Check X-Instance-ID
+	instanceID := r.Header.Get("X-Instance-ID")
+	if instanceID == "" {
+		instanceID = r.URL.Query().Get("instance_id")
+	}
+	if instanceID != "" && s.registry != nil {
+		go s.registry.KeepAlive(instanceID)
+	}
 
 	// Read body
 	body, err := io.ReadAll(r.Body)

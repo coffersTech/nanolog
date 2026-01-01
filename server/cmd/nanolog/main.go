@@ -15,6 +15,7 @@ import (
 	"github.com/coffersTech/nanolog/server/internal/controller"
 	"github.com/coffersTech/nanolog/server/internal/engine"
 	"github.com/coffersTech/nanolog/server/internal/pkg/security"
+	"github.com/coffersTech/nanolog/server/internal/registry"
 	"github.com/coffersTech/nanolog/server/internal/server"
 	"github.com/coffersTech/nanolog/server/internal/storage"
 )
@@ -113,11 +114,27 @@ func main() {
 
 	// 4. Initialize Aggregator for Console role
 	aggregator := cluster.NewAggregator(dataNodeList)
+	
+	// 5. Initialize Registry (Standalone or Console)
+	var regStore *registry.Store
+	if *role == "standalone" || *role == "console" {
+		regStore = registry.NewStore()
+		// Cleanup stale instances every minute (stale = 10 mins inactive)
+		regStore.StartCleanupLoop(context.Background(), 1*time.Minute, 10*time.Minute)
+	}
 
-	// 4. Initialize IngestServer
-	srv := server.NewIngestServer(qe, metaStore, *webDir, *dataDir, *role, aggregator)
+	// 6. Initialize IngestServer
+	srv := server.NewIngestServer(qe, metaStore, *webDir, *dataDir, *role, aggregator, regStore)
+	
+	// Register Handshake Route manually for now (since IngestServer doesn't encapsulate it yet)
+	// Ideally IngestServer should accept additional handlers or we register it to srv's mux?
+	// But srv.Start creates a NEW mux. We need to register it INSIDE IngestServer or pass it?
+	// Wait, IngestServer.Start creates the mux locally. I can't register external handlers easily unless I modify IngestServer to expose registration or do it inside IngestServer.
+	// For now, let's keep it simple: Use IngestServer to handle registry? No, separation of concerns.
+	// We need to modify IngestServer to Register Registry routes.
+	
 	addr := fmt.Sprintf(":%d", *port)
-	_ = adminAddr // Reserved for future use in ingester -> admin registration
+	_ = adminAddr 
 
 	// 4. Start HTTP Server in a goroutine
 	go func() {

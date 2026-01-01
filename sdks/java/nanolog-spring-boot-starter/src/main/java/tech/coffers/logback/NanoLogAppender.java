@@ -77,11 +77,19 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         }
     }
 
+    // Instance Identity
+    private final String instanceId = java.util.UUID.randomUUID().toString();
+    private static final String SDK_VERSION = "java-0.1.1";
+
     @Override
     public void start() {
         if (isStarted()) {
             return;
         }
+
+        // 0. Perform Handshake (Blocking, short timeout)
+        performHandshake();
+
         super.start();
         running.set(true);
 
@@ -106,7 +114,64 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         }
 
         addInfo("NanoLogAppender started. Server: " + serverUrl + ", Service: " + serviceName +
-                ", Host: " + host + ", Fallback: " + (enableFallback ? fallbackPath : "disabled"));
+                ", Host: " + host + ", Fallback: " + (enableFallback ? fallbackPath : "disabled") +
+                ", InstanceID: " + instanceId);
+    }
+
+    private void performHandshake() {
+        try {
+            URL url = new URL(serverUrl + "/api/registry/handshake");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("X-Instance-ID", instanceId);
+
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(3000); // 3s timeout for handshake
+            conn.setReadTimeout(3000);
+
+            // Build JSON
+            String json = "{"
+                    + "\"instance_id\":\"" + instanceId + "\","
+                    + "\"service_name\":\"" + escapeJson(serviceName) + "\","
+                    + "\"hostname\":\"" + escapeJson(host) + "\"," // Host might be unknown initially, but we try
+                    + "\"sdk_version\":\"" + SDK_VERSION + "\","
+                    + "\"language\":\"java\","
+                    + "\"registered_at\":" + (System.currentTimeMillis() / 1000)
+                    + "}";
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(json.getBytes(StandardCharsets.UTF_8));
+            }
+
+            int code = conn.getResponseCode();
+            if (code == 200) {
+                // Parse Response (Simple manual parsing)
+                try (java.io.InputStream is = conn.getInputStream()) {
+                    java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
+                    String resp = s.hasNext() ? s.next() : "";
+
+                    // Simple check for "DEBUG" level
+                    if (resp.contains("\"level\":\"DEBUG\"")) {
+                        // Dynamically adjust filter - strictly speaking AppenderBase doesn't have
+                        // setLevel
+                        // We would need to add a ThresholdFilter or similar.
+                        // For this task, let's just log it.
+                        // To implement real level switching, we would need to check against this level
+                        // in append().
+                        addInfo("Handshake: Server requested DEBUG level");
+                    }
+                }
+            } else {
+                addWarn("Handshake failed with status: " + code);
+            }
+        } catch (Exception e) {
+            addWarn("Handshake failed: " + e.getMessage());
+        }
     }
 
     @Override
@@ -367,6 +432,8 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             if (token != null && !token.isEmpty()) {
                 conn.setRequestProperty("Authorization", "Bearer " + token);
             }
+            // Add Heartbeat Header
+            conn.setRequestProperty("X-Instance-ID", instanceId);
 
             int code = conn.getResponseCode();
             conn.disconnect();
@@ -437,6 +504,9 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             if (token != null && !token.isEmpty()) {
                 conn.setRequestProperty("Authorization", "Bearer " + token);
             }
+
+            // Add Heartbeat Header
+            conn.setRequestProperty("X-Instance-ID", instanceId);
 
             conn.setDoOutput(true);
             conn.setConnectTimeout(5000);

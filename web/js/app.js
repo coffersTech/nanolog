@@ -75,6 +75,10 @@ createApp({
         const initForm = ref({ username: '', password: '' });
         const retentionInput = ref('');
         const showLogoutConfirm = ref(false);
+        // Instances State
+        const instances = ref([]);
+        const instancesInterval = ref(null);
+
         const showResetPasswordModal = ref(false);
         const resetPasswordForm = ref({ username: '', password: '' });
         const showChangePasswordModal = ref(false);
@@ -1074,12 +1078,36 @@ createApp({
             statsInterval = setInterval(fetchStats, 2000);
         };
 
+        // Instances Logic
+        const fetchInstances = async () => {
+            if (!isAuthenticated.value) return;
+            try {
+                const res = await apiFetch('/api/registry/instances');
+                instances.value = await res.json() || [];
+            } catch (e) { }
+        };
+
+        const isOnline = (lastSeen) => {
+            const now = Date.now() / 1000;
+            return (now - lastSeen) < 60; // < 1 minute
+        };
+
+        const formatUptime = (ts) => {
+            const now = Date.now() / 1000;
+            const diff = now - ts;
+            if (diff < 60) return Math.floor(diff) + 's';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+            return Math.floor(diff / 86400) + 'd';
+        };
+
         const switchView = (view) => {
             // Cleanup previous view state
             if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
             if (pieChart) { pieChart.destroy(); pieChart = null; }
             if (barChart) { barChart.destroy(); barChart = null; }
             if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+            if (instancesInterval.value) { clearInterval(instancesInterval.value); instancesInterval.value = null; }
 
             currentView.value = view;
 
@@ -1089,6 +1117,9 @@ createApp({
                 fetchUsers();
                 fetchTokens();
                 fetchConfig();
+            } else if (view === 'instances') {
+                fetchInstances();
+                instancesInterval.value = setInterval(fetchInstances, 10000);
             } else {
                 // Default to discover view
                 setTimeout(initChart, 100);
@@ -1120,7 +1151,8 @@ createApp({
             recentCustomRanges, timeParams, timeRangeLabel,
             updateTimeRange, applyCustomTimeRange, selectRecentCustom,
             showRecentHistory, histogramTotal, searchError, highlightText,
-            contextModal, openContextModal
+            contextModal, openContextModal,
+            instances, isOnline, formatUptime
         };
     }
 }).mount('#app');

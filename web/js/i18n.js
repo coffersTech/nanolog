@@ -27,7 +27,8 @@ const messages = {
             logout: "Logout",
             change_password: "Change Password",
             header_monitor: "Monitor",
-            header_system: "System"
+            header_system: "System",
+            instances: "Instances"
         },
         search: {
             placeholder: "Search logs (e.g. level=ERROR service=auth)...",
@@ -84,7 +85,10 @@ const messages = {
             name: "Name",
             prefix: "Prefix",
             type: "Type",
-            created_by: "Created By"
+            created_by: "Created By",
+            status: "Status",
+            sdk_ver: "SDK Version",
+            uptime: "Uptime"
         },
         auth: {
             login_title: "Security Required",
@@ -203,7 +207,8 @@ const messages = {
             logout: "退出登录",
             change_password: "修改密码",
             header_monitor: "监控",
-            header_system: "系统"
+            header_system: "系统",
+            instances: "在线实例"
         },
         search: {
             placeholder: "搜索日志 (例如 level=ERROR service=auth)...",
@@ -261,7 +266,10 @@ const messages = {
             name: "名称",
             prefix: "前缀",
             type: "类型",
-            created_by: "创建者"
+            created_by: "创建者",
+            status: "状态",
+            sdk_ver: "SDK 版本",
+            uptime: "运行时间"
         },
         auth: {
             login_title: "需要安全验证",
