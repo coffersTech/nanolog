@@ -7,4 +7,4 @@ require (
 	github.com/valyala/fastjson v1.6.4
 )
 
-require golang.org/x/crypto v0.46.0
+require golang.org/x/crypto v0.31.0
