@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -19,19 +20,17 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnClass(NanoLogAppender.class)
 @ConditionalOnProperty(prefix = "nanolog", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(NanoLogProperties.class)
 public class NanoLogAutoConfiguration {
 
-    @Value("${nanolog.server-url:http://localhost:8080}")
-    private String serverUrl;
+    private final NanoLogProperties properties;
 
-    @Value("${nanolog.service:${spring.application.name:default}}")
-    private String serviceName;
+    @Value("${spring.application.name:default}")
+    private String applicationName;
 
-    @Value("${nanolog.batch-size:100}")
-    private int batchSize;
-
-    @Value("${nanolog.flush-interval-ms:1000}")
-    private long flushIntervalMs;
+    public NanoLogAutoConfiguration(NanoLogProperties properties) {
+        this.properties = properties;
+    }
 
     @PostConstruct
     public void registerAppender() {
@@ -47,13 +46,27 @@ public class NanoLogAutoConfiguration {
         NanoLogAppender appender = new NanoLogAppender();
         appender.setName("NANOLOG");
         appender.setContext(context);
-        appender.setServerUrl(serverUrl);
+        appender.setServerUrl(properties.getServerUrl());
+
+        // Use configured service name, fallback to spring.application.name
+        String serviceName = "default".equals(properties.getService())
+                ? applicationName
+                : properties.getService();
         appender.setServiceName(serviceName);
-        appender.setBatchSize(batchSize);
-        appender.setFlushIntervalMs(flushIntervalMs);
+
+        appender.setBatchSize(properties.getBatchSize());
+        appender.setFlushIntervalMs(properties.getFlushIntervalMs());
+
+        // Fallback configuration
+        appender.setEnableFallback(properties.isEnableFallback());
+        appender.setFallbackPath(properties.getFallbackPath());
+
         appender.start();
 
         rootLogger.addAppender(appender);
-        log.info("NanoLog auto-configured. Server: {}, Service: {}", serverUrl, serviceName);
+        log.info("NanoLog auto-configured. Server: {}, Service: {}, Fallback: {}",
+                properties.getServerUrl(),
+                serviceName,
+                properties.isEnableFallback() ? properties.getFallbackPath() : "disabled");
     }
 }
