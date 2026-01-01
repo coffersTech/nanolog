@@ -61,12 +61,16 @@ public class NanoLogAutoConfiguration {
         appender.setEnableFallback(properties.isEnableFallback());
         appender.setFallbackPath(properties.getFallbackPath());
 
+        // Authentication
+        appender.setToken(properties.getToken());
+
         appender.start();
 
         rootLogger.addAppender(appender);
-        log.info("NanoLog auto-configured. Server: {}, Service: {}, Fallback: {}",
+        log.info("NanoLog auto-configured. Server: {}, Service: {}, Fallback: {}, Auth: {}",
                 properties.getServerUrl(),
                 serviceName,
-                properties.isEnableFallback() ? properties.getFallbackPath() : "disabled");
+                properties.isEnableFallback() ? properties.getFallbackPath() : "disabled",
+                (properties.getToken() != null && !properties.getToken().isEmpty()) ? "enabled" : "disabled");
     }
 }

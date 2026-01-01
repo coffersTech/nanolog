@@ -18,6 +18,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <li>Exponential backoff retry (100ms -> 200ms -> 400ms)</li>
  * <li>Local fallback when server is unavailable</li>
  * <li>Automatic recovery when server becomes available</li>
+ * <li>Context awareness (TraceID, Thread Name, Logger Name)</li>
  * </ul>
  */
 @Getter
@@ -52,10 +54,28 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     private boolean enableFallback = true;
     private String fallbackPath = "/tmp/nanolog/fallback";
 
-    private final LinkedBlockingQueue<ILoggingEvent> queue = new LinkedBlockingQueue<>(10000);
+    // Authentication
+    private String token = "";
+
+    // Use EnhancedLogEvent to carry Context info
+    private final LinkedBlockingQueue<EnhancedLogEvent> queue = new LinkedBlockingQueue<>(10000);
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Thread workerThread;
     private Thread recoveryThread;
+
+    /**
+     * Internal wrapper to carry log event and extracted context.
+     */
+    @Getter
+    private static class EnhancedLogEvent {
+        private final ILoggingEvent event;
+        private final String traceId;
+
+        public EnhancedLogEvent(ILoggingEvent event, String traceId) {
+            this.event = event;
+            this.traceId = traceId;
+        }
+    }
 
     @Override
     public void start() {
@@ -124,19 +144,44 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
 
     @Override
     protected void append(ILoggingEvent event) {
+        if (event == null)
+            return;
+
+        // 1. Extract TraceID from MDC immediately (in logging thread)
+        String traceId = extractTraceId(event);
+
+        // 2. Wrap and enqueue
         // Never block the logging thread
-        if (!queue.offer(event)) {
+        if (!queue.offer(new EnhancedLogEvent(event, traceId))) {
             addWarn("NanoLog queue full, dropping log event");
         }
     }
 
+    private String extractTraceId(ILoggingEvent event) {
+        Map<String, String> mdc = event.getMDCPropertyMap();
+        if (mdc == null || mdc.isEmpty()) {
+            return "";
+        }
+
+        // Try common TraceID keys
+        String tid = mdc.get("traceId");
+        if (tid == null)
+            tid = mdc.get("trace_id");
+        if (tid == null)
+            tid = mdc.get("X-B3-TraceId");
+        if (tid == null)
+            tid = mdc.get("X-Amzn-Trace-Id");
+
+        return tid != null ? tid : "";
+    }
+
     private void workerLoop() {
-        List<ILoggingEvent> batch = new ArrayList<>(batchSize);
+        List<EnhancedLogEvent> batch = new ArrayList<>(batchSize);
         long lastFlush = System.currentTimeMillis();
 
         while (running.get() || !queue.isEmpty()) {
             try {
-                ILoggingEvent event = queue.poll(100, TimeUnit.MILLISECONDS);
+                EnhancedLogEvent event = queue.poll(100, TimeUnit.MILLISECONDS);
                 if (event != null) {
                     batch.add(event);
                 }
@@ -163,14 +208,14 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     }
 
     private void flushQueue() {
-        List<ILoggingEvent> remaining = new ArrayList<>();
+        List<EnhancedLogEvent> remaining = new ArrayList<>();
         queue.drainTo(remaining);
         if (!remaining.isEmpty()) {
             sendBatch(remaining);
         }
     }
 
-    private void sendBatch(List<ILoggingEvent> batch) {
+    private void sendBatch(List<EnhancedLogEvent> batch) {
         if (batch.isEmpty()) {
             return;
         }
@@ -317,6 +362,12 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             conn.setConnectTimeout(2000);
             conn.setReadTimeout(2000);
             conn.setRequestMethod("GET");
+
+            // Add Authorization header if token is configured
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+
             int code = conn.getResponseCode();
             conn.disconnect();
             return code == 200;
@@ -325,18 +376,28 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         }
     }
 
-    private String buildJsonPayload(List<ILoggingEvent> events) {
+    private String buildJsonPayload(List<EnhancedLogEvent> events) {
         StringBuilder sb = new StringBuilder();
         sb.append("[");
         for (int i = 0; i < events.size(); i++) {
             if (i > 0)
                 sb.append(",");
-            ILoggingEvent e = events.get(i);
+            EnhancedLogEvent wrapper = events.get(i);
+            ILoggingEvent e = wrapper.getEvent();
+
             sb.append("{");
             sb.append("\"timestamp\":").append(e.getTimeStamp() * 1_000_000).append(","); // Convert to nanos
             sb.append("\"level\":\"").append(mapLevel(e.getLevel().levelInt)).append("\",");
             sb.append("\"service\":\"").append(escapeJson(serviceName)).append("\",");
             sb.append("\"host\":\"").append(escapeJson(host)).append("\",");
+
+            // Context fields
+            if (wrapper.getTraceId() != null && !wrapper.getTraceId().isEmpty()) {
+                sb.append("\"trace_id\":\"").append(escapeJson(wrapper.getTraceId())).append("\",");
+            }
+            sb.append("\"thread_name\":\"").append(escapeJson(e.getThreadName())).append("\",");
+            sb.append("\"logger_name\":\"").append(escapeJson(e.getLoggerName())).append("\",");
+
             sb.append("\"message\":\"").append(escapeJson(e.getFormattedMessage())).append("\"");
             sb.append("}");
         }
@@ -371,6 +432,12 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
         try {
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
+
+            // Add Authorization header if token is configured
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+
             conn.setDoOutput(true);
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);

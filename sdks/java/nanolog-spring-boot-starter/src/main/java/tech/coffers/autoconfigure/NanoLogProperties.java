@@ -48,4 +48,10 @@ public class NanoLogProperties {
      * Path to the fallback directory for storing failed logs.
      */
     private String fallbackPath = "/tmp/nanolog/fallback";
+
+    /**
+     * API Token for authentication with NanoLog server.
+     * This token is sent in the Authorization header as Bearer token.
+     */
+    private String token = "";
 }

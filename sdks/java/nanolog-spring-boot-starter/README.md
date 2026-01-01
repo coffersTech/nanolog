@@ -127,6 +127,9 @@ implementation 'tech.coffers:nanolog-spring-boot-starter:0.1.0'
 
 ```yaml
 nanolog:
+  # 认证配置
+  token: sk-xxxxxxxxxxxxxxxx             # API Token (介绍 in Server UI)
+
   # 基础配置
   enabled: true                              # 是否启用 (默认: true)
   server-url: http://localhost:8080          # NanoLog Server 地址
@@ -145,6 +148,7 @@ nanolog:
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
+| `nanolog.token` | string | `""` | **API Token** (必填)****** |
 | `nanolog.enabled` | boolean | `true` | 是否启用 NanoLog |
 | `nanolog.server-url` | string | `http://localhost:8080` | NanoLog Server 地址 |
 | `nanolog.service` | string | `default` | 服务标识，用于区分日志来源 |
