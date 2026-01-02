@@ -117,6 +117,50 @@ nanolog:
   service: order-api
 ```
 
+### Python 接入
+1. **安装 SDK**:
+```bash
+pip install nanolog-sdk
+```
+
+2. **配置 Logger**:
+```python
+from nanolog import NanoLogHandler
+import logging
+
+logger = logging.getLogger("my_app")
+logger.addHandler(NanoLogHandler(
+    server_url="http://localhost:8080",
+    api_key="sk-xxxx",
+    service="my-service"
+))
+
+logger.info("Hello from Python")
+```
+
+### Go 接入
+1. **获取模块**:
+```bash
+go get github.com/coffersTech/nanolog/sdks/go/nanolog
+```
+
+2. **使用 slog**:
+```go
+import (
+    "log/slog"
+    "github.com/coffersTech/nanolog/sdks/go/nanolog"
+)
+
+handler := nanolog.NewHandler(nanolog.Options{
+    ServerURL: "http://localhost:8080",
+    APIKey:    "sk-xxxx",
+    Service:   "go-service",
+})
+logger := slog.New(handler)
+
+logger.Info("Hello from Go")
+```
+
 ## 🌐 分布式部署 (Docker)
 
 NanoLog v0.5.0 实现了真正的读写分离，支持一个 `console` 节点管理多个 `ingester` 节点。
