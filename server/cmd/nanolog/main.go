@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/coffersTech/nanolog/server/internal/cluster"
 	"github.com/coffersTech/nanolog/server/internal/controller"
 	"github.com/coffersTech/nanolog/server/internal/engine"
@@ -30,6 +32,8 @@ func main() {
 	role := flag.String("role", "standalone", "Server role: standalone, console, ingester")
 	dataNodes := flag.String("data-nodes", "", "Comma-separated list of data node URLs (for console role)")
 	adminAddr := flag.String("admin-addr", "localhost:8080", "Upstream admin address (for ingester nodes)")
+	resetUser := flag.String("reset-password-user", "", "Username to reset password for")
+	resetPass := flag.String("reset-password-val", "", "New password value")
 	flag.Parse()
 
 	// Parse retention duration
@@ -80,6 +84,25 @@ func main() {
 			log.Println("NanoLog Console Node Started (Management & Query Aggregation)")
 		} else {
 			log.Println("NanoLog Standalone Node Started")
+		}
+
+		// Handle password reset if flags are provided
+		if *resetUser != "" {
+			if *resetPass == "" {
+				log.Fatal("Error: --reset-password-val must be provided with --reset-password-user")
+			}
+			
+			hash, err := bcrypt.GenerateFromPassword([]byte(*resetPass), bcrypt.DefaultCost)
+			if err != nil {
+				log.Fatalf("Failed to hash password: %v", err)
+			}
+
+			if err := metaStore.UpdateUserPassword(*resetUser, string(hash)); err != nil {
+				log.Fatalf("Failed to update password for user %s: %v", *resetUser, err)
+			}
+
+			log.Printf("Successfully reset password for user: %s", *resetUser)
+			os.Exit(0)
 		}
 	}
 

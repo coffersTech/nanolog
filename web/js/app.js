@@ -19,7 +19,7 @@ createApp({
         let endPicker = null;
 
         // I18n State
-        const currentLang = ref(localStorage.getItem('nanolog_lang') || 'en');
+        const currentLang = ref(localStorage.getItem('nanolog_lang') || 'zh');
         console.log('NanoLog App Logic v1.5 Loaded');
         const t = (path, params = {}) => {
             const keys = path.split('.');
@@ -934,6 +934,15 @@ createApp({
         };
 
         onMounted(async () => {
+            // Smoothly remove preloader
+            const loader = document.getElementById('app-loader');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.visibility = 'hidden';
+                }, 500);
+            }
+
             await checkSystemStatus();
             const savedToken = localStorage.getItem(STORAGE_KEY);
             if (savedToken) {
@@ -1166,7 +1175,6 @@ createApp({
             users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
             initForm, retentionInput, toast, showToast, showUserMenu, confirmModal, triggerConfirm,
             addUser, deleteUser, openResetPassword, resetPassword, showResetPasswordModal, resetPasswordForm,
-            showChangePasswordModal, changePasswordForm, changePassword,
             showChangePasswordModal, changePasswordForm, changePassword,
             generateToken, revokeToken, copyGeneratedToken, copyToken, updateRetention, initializeSystem,
             currentLang, setLang, t,

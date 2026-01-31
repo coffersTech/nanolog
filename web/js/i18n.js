@@ -18,7 +18,9 @@ const messages = {
             cluster_online: "Cluster Online",
             admin_console: "Admin Console",
             data_node: "Data Node",
-            version: "v0.5.0"
+            version: "v0.5.0",
+            online: "Online",
+            offline: "Offline"
         },
         nav: {
             discover: "Discover",
@@ -157,9 +159,9 @@ const messages = {
             token_created_title: "API Key Generated",
             token_created_desc: "Please copy your API key now. You won't be able to see it again!",
             permissions: {
-                write: "Write (Ingest)",
                 read: "Read (Query)"
-            }
+            },
+            context_title: "Log Context"
         },
         roles: {
             super_admin: "Super Admin",
@@ -179,6 +181,17 @@ const messages = {
             revoke_success: "API Key revoked successfully",
             revoke_failed: "Failed to revoke token",
             invalid_time_range: "Invalid time range: End time must be after start time"
+        },
+        dashboard: {
+            title: "System Overview",
+            level_dist: "Level Distribution",
+            top_services: "Top Services",
+            logs_sec: "logs/sec"
+        },
+        empty: {
+            no_logs_cluster: "No logs found in this cluster",
+            try_ingesting: "Try broadening the search or ingesting more data.",
+            no_instances: "No instances registered."
         }
     },
     zh: {
@@ -200,7 +213,9 @@ const messages = {
             cluster_online: "集群在线",
             admin_console: "管理控制台",
             data_node: "数据节点",
-            version: "v0.5.0"
+            version: "v0.5.0",
+            online: "在线",
+            offline: "离线"
         },
         nav: {
             discover: "探索",
@@ -342,7 +357,8 @@ const messages = {
             permissions: {
                 write: "写入 (Ingest)",
                 read: "读取 (Query)"
-            }
+            },
+            context_title: "日志上下文"
         },
         roles: {
             super_admin: "超级管理员",
@@ -362,6 +378,17 @@ const messages = {
             revoke_success: "API 密钥已撤销",
             revoke_failed: "撤销令牌失败",
             invalid_time_range: "无效的时间范围：结束时间必须在开始时间之后"
+        },
+        dashboard: {
+            title: "系统概览",
+            level_dist: "级别分布",
+            top_services: "热门服务",
+            logs_sec: "条/秒"
+        },
+        empty: {
+            no_logs_cluster: "集群中未找到日志",
+            try_ingesting: "请尝试扩大搜索范围或摄入更多数据。",
+            no_instances: "未注册任何实例。"
         }
     }
 };

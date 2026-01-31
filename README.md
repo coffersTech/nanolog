@@ -10,15 +10,16 @@
 
 NanoLog 是一个专为云原生设计的轻量级日志存储引擎。它不像 Elasticsearch 那样沉重，也不像 Plain Text 那样难以检索。它定位为**日志界的 SQLite**：单二进制文件、极致性能、内置管理面板。
 
-## ✨ v0.3.x 核心特性
+## ✨ v0.5.x 核心特性
 
 - 🚀 **极速启动**：单二进制文件，0 运行时依赖，Docker 镜像仅约 20MB。
 - 💾 **列式存储**：自研 `.nano` 格式，搭配 ZSTD 压缩，存储成本仅为原始 JSON 的 10%。
 - 🔍 **混合查询**：内存 (MemTable) + 磁盘 (Columnar Storage) 混合检索，支持秒级逻辑查询。
 - 🎨 **管理面板**：内嵌式 Vue 3 控制台，支持用户管理、API 密钥管理及系统配置。
+- 🌐 **多语言支持**：原生支持中/英文切换，完美解决大屏展示与国际化需求。
 - 🛡️ **安全加固 (Security at Rest)**：
     - **静态加密**：核心元数据 `.nanolog.sys` 采用 AES-GCM 算法强制加密。
-    - **密钥隔离**：支持环境变量、外部文件或自动生成 Master Key (`.nanolog.key`)。
+    - **密码重置**：内置命令行工具，支持在忘记密码时快速重置管理员权限。
     - **RBAC 权限**：内置角色访问控制，SuperAdmin 专属管理权限。
     - **Bcrypt 散列**：用户密码采用 Bcrypt 强散列，杜绝明文存储。
 
@@ -50,9 +51,11 @@ cd nanolog/server
 | `./run.sh standalone` | 启动全功能单机模式 ⭐ |
 | `./run.sh console` | 启动为 Console 节点 (需配合 `--data-nodes`) |
 | `./run.sh ingester` | 启动为 Ingester 存储节点 |
+| `./run.sh reset-password` | 重置指定用户密码 (急救工具) |
 | `./run.sh start` | 编译并启动 (支持自定义参数) |
 | `./run.sh build` | 仅编译到 `bin/nanolog` |
 | `./run.sh test` | 运行单元测试 |
+| `./run.sh tidy` | 运行 go mod tidy |
 
 #### 使用示例
 
@@ -163,7 +166,7 @@ logger.Info("Hello from Go")
 
 ## 🌐 分布式部署 (Docker)
 
-NanoLog v0.5.0 实现了真正的读写分离，支持一个 `console` 节点管理多个 `ingester` 节点。
+NanoLog 提供了强大的分布式扩展能力，支持真正的读写分离，单个 `console` 节点可管理数十个 `ingester` 存储节点。V0.5.0 版本引入了 **高性能 Nginx 模板**，支持 Keepalive 长连接与集群域名自动注入。
 
 ### 快速启动
 
