@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
-    <link rel="stylesheet" href="css/tailwind.min.css">
-    <link rel="stylesheet" href="css/style.css?v=1.2">
+    <link rel="stylesheet" href="css/tailwind.min.css?v=2.0">
+    <link rel="stylesheet" href="css/style.css?v=2.0">
     <style>
         /* Flatpickr Dark Theme Customization */
         .flatpickr-calendar {
@@ -144,7 +144,25 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* Failsafe to ensure preloader is removed even if JS fails */
+        #app-loader {
+            transition: opacity 0.5s ease, visibility 0.5s;
+        }
     </style>
+    <script>
+        // Emergency failsafe: hide loader after 5 seconds if still visible
+        setTimeout(() => {
+            const loader = document.getElementById('app-loader');
+            if (loader && window.getComputedStyle(loader).visibility !== 'hidden') {
+                console.warn("Failsafe: Force-hiding app-loader after timeout");
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.visibility = 'hidden';
+                }, 500);
+            }
+        }, 5000);
+    </script>
 </head>
 
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans selection:bg-cyan-500/30">
@@ -1524,8 +1542,8 @@
         </div>
     </div>
 
-    <script src="js/i18n.js?v=1.1"></script>
-    <script src="js/app.js?v=1.6"></script>
+    <script src="js/i18n.js?v=2.0"></script>
+    <script src="js/app.js?v=2.0"></script>
 </body>
 
 </html>

@@ -225,6 +225,7 @@ func (s *IngestServer) handleSystemStatus(w http.ResponseWriter, r *http.Request
 	} else {
 		resp["initialized"] = true // Engine nodes don't handle init
 	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
