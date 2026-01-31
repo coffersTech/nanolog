@@ -19,7 +19,7 @@ services:
   # ====================
   nanolog-console:
     build: .
-    image: coffersTech/nanolog:latest
+    image: cofferstech/nanolog:latest
     container_name: nanolog-console
     command: [ "--role=console", "--data-nodes=http://ingester-1:8080,http://ingester-2:8080" ]
     ports:
@@ -30,6 +30,25 @@ services:
       - ./meta_data:/root/data
     networks:
       - nanolog-net
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
 
   # ====================
@@ -37,11 +56,11 @@ services:
   # ====================
   ingester-1:
     build: .
-    image: coffersTech/nanolog:latest
+    image: cofferstech/nanolog:latest
     container_name: ingester-1
     command: [ "--role=ingester" ]
-    ports:
-      - "8081:8080"
+    # ports:
+    #   - "8081:8080"
     environment:
       - NANOLOG_MASTER_KEY=shared-secret-key-change-in-production
     volumes:
@@ -50,6 +69,25 @@ services:
       - nanolog-console
     networks:
       - nanolog-net
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
 
   # ====================
@@ -57,11 +95,11 @@ services:
   # ====================
   ingester-2:
     build: .
-    image: coffersTech/nanolog:latest
+    image: cofferstech/nanolog:latest
     container_name: ingester-2
     command: [ "--role=ingester" ]
-    ports:
-      - "8082:8080"
+    # ports:
+    #   - "8082:8080"
     environment:
       - NANOLOG_MASTER_KEY=shared-secret-key-change-in-production
     volumes:
@@ -70,6 +108,25 @@ services:
       - nanolog-console
     networks:
       - nanolog-net
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
 
   # ====================
@@ -79,12 +136,16 @@ services:
     image: nginx:alpine
     container_name: nginx-lb
     ports:
-      - "8088:80"
+      - "80:80"
+    environment:
+      - NANOLOG_DOMAIN=localhost
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
     volumes:
-      - ./nginx-dist.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-dist.conf:/etc/nginx/templates/nginx.conf.template:ro
     depends_on:
       - ingester-1
       - ingester-2
+      - nanolog-console
     networks:
       - nanolog-net
     restart: unless-stopped
