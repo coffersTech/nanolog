@@ -58,6 +58,7 @@ createApp({
         const authToken = ref('');
         const isAuthenticated = ref(false);
         const loginForm = ref({ username: '', password: '', remember: true });
+        const showPassword = ref(false);
         const userRole = ref('');
         const currentUser = ref('');
         const systemInitialized = ref(true);
@@ -1193,7 +1194,7 @@ createApp({
             logs, filteredLogs, loading, error, searchQuery, autoRefresh, expandedIndex, currentView, stats, switchView,
             toggleRow, isJson, formatJson, formatBytes, formatNumber,
             fetchLogs: fetchAll, formatTimestamp, getLevelText, getLevelClass,
-            isAuthenticated, authToken, loginForm, login, logout, showLogoutConfirm, confirmLogout, cancelLogout,
+            isAuthenticated, authToken, loginForm, showPassword, login, logout, showLogoutConfirm, confirmLogout, cancelLogout,
             userRole, currentUser, systemInitialized, nodeRole, settingsTab,
             users, tokens, showAddUserModal, newUser, showAddTokenModal, newToken, generatedToken,
             initForm, retentionInput, toast, showToast, showUserMenu, confirmModal, triggerConfirm,
