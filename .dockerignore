@@ -26,3 +26,8 @@ nanolog.exe
 server/bin/
 server/nanolog
 server/internal/storage/log_*
+
+# Web Dev Artifacts
+web/node_modules/
+web/.npm/
+web/package-lock.json
