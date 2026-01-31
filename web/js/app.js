@@ -880,14 +880,37 @@ createApp({
             );
         };
 
+        const copyToClipboard = (text) => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(t('alerts.token_copied'), 'success');
+                });
+            } else {
+                // Legacy fallback for non-secure HTTP contexts
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                textArea.style.top = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast(t('alerts.token_copied'), 'success');
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                }
+                document.body.removeChild(textArea);
+            }
+        };
+
         const copyGeneratedToken = () => {
-            navigator.clipboard.writeText(generatedToken.value);
-            showToast(t('alerts.token_copied'), 'success');
+            copyToClipboard(generatedToken.value);
         };
 
         const copyToken = (token) => {
-            navigator.clipboard.writeText(token);
-            showToast(t('alerts.token_copied'), 'success');
+            copyToClipboard(token);
         };
 
         const checkSystemStatus = async () => {

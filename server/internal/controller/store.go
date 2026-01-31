@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -178,13 +179,13 @@ func (s *Store) DeleteUser(username string) error {
 	return os.ErrNotExist
 }
 
-// GetUser returns a user by username.
+// GetUser returns a user by username (case-insensitive).
 func (s *Store) GetUser(username string) (User, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, u := range s.data.Users {
-		if u.Username == username {
+		if strings.EqualFold(u.Username, username) {
 			return u, true
 		}
 	}
