@@ -40,8 +40,11 @@ Thumbs.db
 .env
 .env.local
 
-# Dependencies (if vendored)
+# Dependencies
 /vendor/
+node_modules/
+.npm/
+package-lock.json
 
 # Test coverage
 coverage.txt
