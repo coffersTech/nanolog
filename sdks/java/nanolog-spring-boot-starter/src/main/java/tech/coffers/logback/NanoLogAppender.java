@@ -62,6 +62,7 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Thread workerThread;
     private Thread recoveryThread;
+    private Thread heartbeatThread;
 
     // Status
     @Getter
@@ -125,7 +126,14 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             recoveryThread = new Thread(this::recoveryLoop, "NanoLog-Recovery");
             recoveryThread.setDaemon(true);
             recoveryThread.start();
+            recoveryThread.setDaemon(true);
+            recoveryThread.start();
         }
+
+        // Start heartbeat thread (periodic handshake/keepalive)
+        heartbeatThread = new Thread(this::heartbeatLoop, "NanoLog-Heartbeat");
+        heartbeatThread.setDaemon(true);
+        heartbeatThread.start();
 
         // Resolve Hostname
         if ("unknown".equals(host)) {
@@ -361,6 +369,16 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             }
         }
 
+        // Stop heartbeat thread
+        if (heartbeatThread != null) {
+            heartbeatThread.interrupt();
+            try {
+                heartbeatThread.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
         // Flush remaining logs
         flushQueue();
         super.stop();
@@ -585,6 +603,19 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             return code == 200;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private void heartbeatLoop() {
+        while (running.get()) {
+            try {
+                // Heartbeat every 15 seconds
+                Thread.sleep(15_000);
+                performHandshake();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
         }
     }
 

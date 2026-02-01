@@ -109,14 +109,14 @@ Application              Queue              Worker             Server           
 <dependency>
     <groupId>tech.coffers</groupId>
     <artifactId>nanolog-spring-boot-starter</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.6</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'tech.coffers:nanolog-spring-boot-starter:0.1.5'
+implementation 'tech.coffers:nanolog-spring-boot-starter:0.1.6'
 ```
 
 ---
