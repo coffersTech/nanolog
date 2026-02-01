@@ -6,7 +6,7 @@
 
     <groupId>tech.coffers</groupId>
     <artifactId>nanolog-spring-boot-starter</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
     <packaging>jar</packaging>
 
     <name>NanoLog Spring Boot Starter</name>
