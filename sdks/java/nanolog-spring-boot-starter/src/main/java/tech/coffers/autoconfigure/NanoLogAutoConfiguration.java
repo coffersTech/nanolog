@@ -96,9 +96,22 @@ public class NanoLogAutoConfiguration implements InitializingBean {
         if (appender.isHandshakeSuccessful()) {
             // Intelligent behavior: if connected successfully, detach console to avoid
             // noise
-            if (rootLogger.getAppender("CONSOLE") != null) {
-                rootLogger.detachAppender("CONSOLE");
-                log.info("NanoLog connected successfully. Detached CONSOLE appender.");
+            // Robust Detachment Logic
+            // Iterate all appenders to find ConsoleAppender (regardless of name)
+            java.util.Iterator<ch.qos.logback.core.Appender<ch.qos.logback.classic.spi.ILoggingEvent>> iter = rootLogger
+                    .iteratorForAppenders();
+            java.util.List<String> consoleAppenderNames = new java.util.ArrayList<>();
+
+            while (iter.hasNext()) {
+                ch.qos.logback.core.Appender<ch.qos.logback.classic.spi.ILoggingEvent> a = iter.next();
+                if (a instanceof ch.qos.logback.core.ConsoleAppender || a.getName().equalsIgnoreCase("console")) {
+                    consoleAppenderNames.add(a.getName());
+                }
+            }
+
+            for (String name : consoleAppenderNames) {
+                rootLogger.detachAppender(name);
+                log.info("NanoLog connected successfully. Detached appender: {}", name);
             }
         } else {
             log.warn("NanoLog handshake failed. Keeping CONSOLE output for fallback visibility.");
