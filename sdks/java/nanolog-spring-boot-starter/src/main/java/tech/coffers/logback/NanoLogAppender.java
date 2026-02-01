@@ -63,6 +63,10 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     private Thread workerThread;
     private Thread recoveryThread;
 
+    // Status
+    @Getter
+    private boolean handshakeSuccessful = false;
+
     /**
      * Internal wrapper to carry log event and extracted context.
      */
@@ -229,6 +233,7 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
 
             int code = conn.getResponseCode();
             if (code == 200) {
+                this.handshakeSuccessful = true;
                 // Parse Response (Simple manual parsing)
                 try (java.io.InputStream is = conn.getInputStream()) {
                     java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");

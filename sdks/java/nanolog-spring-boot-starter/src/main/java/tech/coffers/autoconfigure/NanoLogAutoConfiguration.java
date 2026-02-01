@@ -92,6 +92,18 @@ public class NanoLogAutoConfiguration implements InitializingBean {
         appender.start();
 
         rootLogger.addAppender(appender);
+
+        if (appender.isHandshakeSuccessful()) {
+            // Intelligent behavior: if connected successfully, detach console to avoid
+            // noise
+            if (rootLogger.getAppender("CONSOLE") != null) {
+                rootLogger.detachAppender("CONSOLE");
+                log.info("NanoLog connected successfully. Detached CONSOLE appender.");
+            }
+        } else {
+            log.warn("NanoLog handshake failed. Keeping CONSOLE output for fallback visibility.");
+        }
+
         log.info("NanoLog auto-configured. Server: {}, Service: {}, Fallback: {}, Auth: {}",
                 properties.getServerUrl(),
                 serviceName,
