@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>
  * Features:
  * <ul>
- * <li>Exponential backoff retry (100ms -> 200ms -> 400ms)</li>
+ * <li>Exponential backoff retry (100ms &rarr; 200ms &rarr; 400ms)</li>
  * <li>Local fallback when server is unavailable</li>
  * <li>Automatic recovery when server becomes available</li>
  * <li>Context awareness (TraceID, Thread Name, Logger Name)</li>
