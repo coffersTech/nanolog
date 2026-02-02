@@ -44,7 +44,7 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
     private static final long INITIAL_BACKOFF_MS = 100;
     private static final long RECOVERY_INTERVAL_MS = 60_000; // 1 minute
 
-    private String serverUrl = "http://localhost:8080";
+    private String serverUrl = "http://localhost:8088";
     private String serviceName = "default";
     private int batchSize = 100;
     private long flushIntervalMs = 1000;
@@ -126,8 +126,7 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             recoveryThread = new Thread(this::recoveryLoop, "NanoLog-Recovery");
             recoveryThread.setDaemon(true);
             recoveryThread.start();
-            recoveryThread.setDaemon(true);
-            recoveryThread.start();
+
         }
 
         // Start heartbeat thread (periodic handshake/keepalive)
@@ -243,8 +242,8 @@ public class NanoLogAppender extends AppenderBase<ILoggingEvent> {
             if (code == 200) {
                 this.handshakeSuccessful = true;
                 // Parse Response (Simple manual parsing)
-                try (java.io.InputStream is = conn.getInputStream()) {
-                    java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
+                try (java.io.InputStream is = conn.getInputStream();
+                        java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A")) {
                     String resp = s.hasNext() ? s.next() : "";
 
                     // Simple check for "DEBUG" level
