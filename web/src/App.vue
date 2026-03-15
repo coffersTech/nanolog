@@ -1,10 +1,25 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { useAppStore } from '@/store';
+import { api } from '@/api';
 import Login from '@/views/Login.vue';
 import MainLayout from '@/views/MainLayout.vue';
 import ToastContainer from '@/components/Toast.vue';
 
 const store = useAppStore();
+
+const fetchSystemStatus = async () => {
+    try {
+        const data = await api.getSystemStatus();
+        store.setNodeRole(data.node_role, data.version);
+    } catch (e) {
+        console.error('Failed to fetch system status:', e);
+    }
+};
+
+onMounted(() => {
+    fetchSystemStatus();
+});
 </script>
 
 <template>

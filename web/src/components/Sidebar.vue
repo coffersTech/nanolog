@@ -31,8 +31,8 @@ defineEmits(['switch-view', 'logout', 'change-password']);
     <!-- Brand -->
     <div class="h-20 flex items-center justify-between px-6 border-b border-gray-800/50">
       <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/10">
-          <span class="text-white font-bold text-lg">N</span>
+        <div class="w-10 h-10 flex items-center justify-center">
+          <img src="/logo.png" alt="NanoLog Logo" class="w-full h-full object-contain" />
         </div>
         <div>
           <h1 class="text-sm font-bold text-white tracking-wide uppercase">NanoLog</h1>
@@ -137,7 +137,7 @@ defineEmits(['switch-view', 'logout', 'change-password']);
               <p class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{{ store.t('common.system_status') }}</p>
               <p class="text-[10px] text-green-500 font-medium truncate">{{ store.t('common.cluster_online') }}</p>
           </div>
-          <span class="text-[10px] font-mono text-gray-600">v0.5.0</span>
+          <span class="text-[10px] font-mono text-gray-600">{{ store.systemVersion }}</span>
       </div>
     </div>
   </aside>

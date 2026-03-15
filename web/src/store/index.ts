@@ -15,10 +15,12 @@ export const useAppStore = defineStore('app', () => {
   
   const currentLang = ref(localStorage.getItem('nanolog_lang') || 'zh');
   const nodeRole = ref('standalone'); // console, engine, standalone
+  const systemVersion = ref('v0.0.0');
   const t = computed(() => getT(currentLang.value));
 
-  const setNodeRole = (role: string) => {
+  const setNodeRole = (role: string, version?: string) => {
     nodeRole.value = role;
+    if (version) systemVersion.value = version;
   };
 
   const setAuth = (token: string, user: string, role: string, remember: boolean = false) => {
@@ -64,6 +66,7 @@ export const useAppStore = defineStore('app', () => {
     currentLang,
     lastUsername,
     nodeRole,
+    systemVersion,
     t,
     setAuth,
     logout,

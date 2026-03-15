@@ -220,10 +220,13 @@ func (s *IngestServer) AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+const Version = "1.0.0"
+
 // handleSystemStatus returns the system initialization status.
 func (s *IngestServer) handleSystemStatus(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"node_role": s.role,
+		"version":   Version,
 	}
 	if s.metaStore != nil {
 		resp["initialized"] = s.metaStore.IsInitialized()

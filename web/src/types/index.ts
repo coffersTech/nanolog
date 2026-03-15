@@ -43,4 +43,5 @@ export interface ApiKey {
 export interface SystemStatus {
   initialized: boolean;
   node_role: 'all' | 'admin' | 'engine';
+  version: string;
 }

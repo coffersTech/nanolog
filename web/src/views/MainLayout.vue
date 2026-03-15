@@ -12,19 +12,6 @@ import { api } from '@/api';
 const store = useAppStore();
 const currentView = ref('discover');
 
-const fetchSystemStatus = async () => {
-    try {
-        const data = await api.getSystemStatus();
-        store.setNodeRole(data.role);
-    } catch (e) {
-        console.error('Failed to fetch system status:', e);
-    }
-};
-
-onMounted(() => {
-    fetchSystemStatus();
-});
-
 const handleSwitchView = (view: string) => { currentView.value = view; };
 
 const handleLogout = () => {

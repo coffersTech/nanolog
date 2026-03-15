@@ -66,11 +66,11 @@ const handleLogin = async () => {
       <!-- Content -->
       <div class="relative z-10 max-w-2xl animate-in fade-in slide-in-from-left-8 duration-1000">
         <div class="flex items-center space-x-5 mb-10">
-            <div class="relative group">
-                <div class="absolute -inset-1 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-700"></div>
-                <div class="relative w-14 h-14 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-center">
-                    <span class="text-white font-black text-2xl bg-clip-text text-transparent bg-gradient-to-tr from-white to-slate-400">N</span>
-                </div>
+            <div class="relative group cursor-pointer">
+                <div class="absolute -inset-2 bg-gradient-to-tr from-cyan-500/20 to-blue-600/20 rounded-2xl blur-lg group-hover:opacity-100 transition duration-700 opacity-50"></div>
+            <div class="relative w-16 h-16 flex items-center justify-center overflow-hidden rounded-2xl border border-slate-800/10">
+                <img src="/logo.png" alt="NanoLog" class="w-full h-full object-contain transform group-hover:scale-110 transition-transform duration-500" />
+            </div>
             </div>
             <div class="h-10 w-px bg-slate-800/50"></div>
             <span class="text-3xl font-black tracking-tighter text-white uppercase italic">Nano<span class="text-cyan-500">Log</span></span>
@@ -103,7 +103,7 @@ const handleLogin = async () => {
 
         <div class="mt-12 flex items-center space-x-12 opacity-40">
             <div class="flex flex-col">
-                <span class="text-3xl font-black text-white italic tracking-tighter">{{ t('common.version') }}</span>
+                <span class="text-3xl font-black text-white italic tracking-tighter">{{ store.systemVersion }}</span>
                 <span class="text-[10px] uppercase tracking-[0.2em] font-black text-slate-500">{{ t('auth.release_status') }}</span>
             </div>
             <div class="h-10 w-px bg-slate-800"></div>

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/logo.png" width="128" alt="NanoLog Logo">
+</p>
+
 # NanoLog 🚀
 
 **轻量级、高性能的 Go 原生日志数据库 (The SQLite for Logs)**
@@ -6,11 +10,13 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/coffersTech/nanolog)](https://goreportcard.com/report/github.com/coffersTech/nanolog)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+[English Documentation](./README_EN.md)
+
 ---
 
 NanoLog 是一个专为云原生设计的轻量级日志存储引擎。它不像 Elasticsearch 那样沉重，也不像 Plain Text 那样难以检索。它定位为**日志界的 SQLite**：单二进制文件、极致性能、内置管理面板。
 
-## ✨ v0.5.x 核心特性
+## ✨ 1.0.0 核心特性
 
 - 🚀 **极速启动**：单二进制文件，0 运行时依赖，Docker 镜像仅约 20MB。
 - 💾 **列式存储**：自研 `.nano` 格式，搭配 ZSTD 压缩，存储成本仅为原始 JSON 的 10%。
@@ -166,7 +172,7 @@ logger.Info("Hello from Go")
 
 ## 🌐 分布式部署 (Docker)
 
-NanoLog 提供了强大的分布式扩展能力，支持真正的读写分离，单个 `console` 节点可管理数十个 `ingester` 存储节点。V0.5.0 版本引入了 **高性能 Nginx 模板**，支持 Keepalive 长连接与集群域名自动注入。
+NanoLog 提供了强大的分布式扩展能力，支持真正的读写分离，单个 `console` 节点可管理数十个 `ingester` 存储节点。1.0.0 版本引入了 **高性能 Nginx 模板**，支持 Keepalive 长连接与集群域名自动注入。
 
 ### 快速启动
 

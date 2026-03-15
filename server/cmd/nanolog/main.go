@@ -133,7 +133,7 @@ func main() {
 		}
 	}
 
-	log.Println("NanoLog Kernel v0.1 Starting HTTP Server...")
+	log.Println("NanoLog Kernel 1.0.0 Starting HTTP Server...")
 
 	// 4. Initialize Aggregator for Console role
 	aggregator := cluster.NewAggregator(dataNodeList)
