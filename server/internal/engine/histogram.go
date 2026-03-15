@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"sort"
 )
 
 type HistogramPoint struct {
@@ -107,15 +106,11 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 		}
 	}
 
-	// 3. Convert Map to Sorted Slice
+	// 3. Fill missing buckets with 0 and convert to sorted slice
 	var points []HistogramPoint
-	for t, c := range buckets {
-		points = append(points, HistogramPoint{Time: t, Count: c})
+	for t := (start / interval) * interval; t <= end; t += interval {
+		points = append(points, HistogramPoint{Time: t, Count: buckets[t]})
 	}
-
-	sort.Slice(points, func(i, j int) bool {
-		return points[i].Time < points[j].Time
-	})
 
 	return points, nil
 }

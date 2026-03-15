@@ -3,6 +3,12 @@
 # Configuration
 URL="http://localhost:8088/api/ingest"
 CONTENT_TYPE="Content-Type: application/json"
+TOKEN="${1:-"sk-8f5e8e4ea501489657faf9eca73ec303"}" # Take token from first argument
+
+if [ -z "$TOKEN" ]; then
+    echo "Warning: No token provided. If the server requires authentication, this will fail with 401."
+    echo "Usage: $0 <API_TOKEN>"
+fi
 
 echo "Starting Ingest Test to $URL..."
 
@@ -18,7 +24,10 @@ do
    PAYLOAD="{\"timestamp\":$TS, \"level\":\"$LEVEL_STR\", \"service\":\"test-svc-$i\", \"message\":\"Test log entry $i\"}"
    
    echo -n "Sending Log $i: "
-   curl -s -o /dev/null -w "%{http_code}" -X POST "$URL" -H "$CONTENT_TYPE" -d "$PAYLOAD"
+   curl -s -o /dev/null -w "%{http_code}" -X POST "$URL" \
+        -H "$CONTENT_TYPE" \
+        -H "Authorization: Bearer $TOKEN" \
+        -d "$PAYLOAD"
    echo ""
 done
 

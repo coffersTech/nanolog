@@ -2,61 +2,41 @@ package registry
 
 import (
 	"context"
+	"github.com/coffersTech/nanolog/server/internal/models"
 	"sync"
 	"time"
 )
 
-// Instance represents a registered SDK instance.
-type Instance struct {
-	InstanceID   string `json:"instance_id"`
-	ServiceName  string `json:"service_name"`
-	Hostname     string `json:"hostname"`
-	IP           string `json:"ip"`
-	SdkVersion   string `json:"sdk_version"`
-	Language     string `json:"language"`
-	RegisteredAt int64  `json:"registered_at"`
-	LastSeenAt   int64  `json:"last_seen_at"`
-}
-
-// ConfigResponse represents the dynamic configuration sent back to the SDK.
-type ConfigResponse struct {
-	Level      string `json:"level"`       // "INFO", "DEBUG"
-	SampleRate int    `json:"sample_rate"` // 0-100
-}
-
 // Store handles the storage of SDK instances.
 type Store struct {
 	mu        sync.RWMutex
-	instances map[string]*Instance
+	instances map[string]*models.Instance
 }
 
 // NewStore creates a new registry store.
 func NewStore() *Store {
 	return &Store{
-		instances: make(map[string]*Instance),
+		instances: make(map[string]*models.Instance),
 	}
 }
 
 // RegisterOrUpdate adds a new instance or updates an existing one.
-func (s *Store) RegisterOrUpdate(instance Instance) {
+func (s *Store) RegisterOrUpdate(instance models.Instance) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// If it already exists, preserve RegisteredAt unless 0 (new)
+	// If it already exists, preserve RegisteredAt
 	if existing, ok := s.instances[instance.InstanceID]; ok {
-		instance.RegisteredAt = existing.RegisteredAt
-	} else {
 		if instance.RegisteredAt == 0 {
-			instance.RegisteredAt = time.Now().Unix()
+			instance.RegisteredAt = existing.RegisteredAt
 		}
 	}
 
-	instance.LastSeenAt = time.Now().Unix()
 	s.instances[instance.InstanceID] = &instance
 }
 
 // GetInstance retrieves an instance by ID.
-func (s *Store) GetInstance(instanceID string) (*Instance, bool) {
+func (s *Store) GetInstance(instanceID string) (*models.Instance, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	inst, ok := s.instances[instanceID]
@@ -71,10 +51,10 @@ func (s *Store) GetInstance(instanceID string) (*Instance, bool) {
 }
 
 // ListInstances returns all registered instances.
-func (s *Store) ListInstances() []Instance {
+func (s *Store) ListInstances() []models.Instance {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	list := make([]Instance, 0, len(s.instances))
+	list := make([]models.Instance, 0, len(s.instances))
 	for _, inst := range s.instances {
 		list = append(list, *inst)
 	}
@@ -120,5 +100,11 @@ func (s *Store) KeepAlive(instanceID string) {
 	defer s.mu.Unlock()
 	if inst, ok := s.instances[instanceID]; ok {
 		inst.LastSeenAt = time.Now().Unix()
+	} else {
+		// Discover instance from heartbeat/ingest even if not explicitly registered in this session
+		s.instances[instanceID] = &models.Instance{
+			InstanceID: instanceID,
+			LastSeenAt: time.Now().Unix(),
+		}
 	}
 }

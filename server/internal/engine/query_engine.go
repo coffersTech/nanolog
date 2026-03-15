@@ -335,6 +335,12 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 			rows = filteredRows
 		}
 
+		// Rows from ReadSnapshot are oldest-first (file order). 
+		// We need newest-first for ExecuteScan.
+		sort.Slice(rows, func(i, j int) bool {
+			return rows[i].Timestamp > rows[j].Timestamp
+		})
+
 		// Append rows up to limit
 		remaining := limit - len(result)
 		if len(rows) <= remaining {

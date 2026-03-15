@@ -3,7 +3,12 @@
 # NanoLog Live Data Generator
 # Targets the ingest API at port 8088
 
-URL="http://localhost:9090/api/ingest"
+URL="http://localhost:8088/api/ingest"
+TOKEN="${1:-"sk-8f5e8e4ea501489657faf9eca73ec303"}"
+
+if [ -z "$TOKEN" ]; then
+    echo "Warning: No token provided. Use: $0 <API_TOKEN>"
+fi
 SERVICES=("auth-service" "order-service" "payment-api")
 LEVELS=("INFO" "WARN" "ERROR")
 MESSAGES=(
@@ -39,10 +44,16 @@ while true; do
   # Note: Including 'host' field as well for completeness
   DATA="[{\"timestamp\": $TS, \"level\": \"$LEVEL\", \"service\": \"$SERVICE\", \"host\": \"gen-script.local\", \"message\": \"API Request Body: $INNER_PAYLOAD\"}]"
 
-  curl -s -X POST -H "Content-Type: application/json" -d "$DATA" "$URL" > /dev/null
+  RESPONSE=$(curl -s -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $TOKEN" \
+        -d "$DATA" "$URL" -o /dev/null)
 
-  # Status output
-  echo "[$(date +%H:%M:%S)] Sent Log: $LEVEL | $SERVICE | $MSG"
+  if [ "$RESPONSE" != "200" ]; then
+     echo "[$(date +%H:%M:%S)] Error: Failed to send log (Status: $RESPONSE)"
+  else
+     # Status output
+     echo "[$(date +%H:%M:%S)] Sent Log: $LEVEL | $SERVICE | $MSG"
+  fi
 
   sleep 0.5
 done

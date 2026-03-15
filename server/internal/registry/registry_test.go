@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"github.com/coffersTech/nanolog/server/internal/models"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +16,7 @@ func TestStore_Cleanup(t *testing.T) {
 	defer cancel()
 
 	// Add an instance
-	inst := Instance{
+	inst := models.Instance{
 		InstanceID: "test-1",
 	}
 	s.RegisterOrUpdate(inst)
@@ -28,7 +29,7 @@ func TestStore_Cleanup(t *testing.T) {
 	s.mu.Unlock()
 
 	// Add a fresh instance
-	inst2 := Instance{
+	inst2 := models.Instance{
 		InstanceID: "test-2",
 	}
 	s.RegisterOrUpdate(inst2)
@@ -49,7 +50,7 @@ func TestStore_Cleanup(t *testing.T) {
 
 func TestServer_HandleHandshake(t *testing.T) {
 	store := NewStore()
-	server := NewServer(store)
+	server := NewServer(store, nil)
 
 	body := `{"instance_id":"sdk-123", "service_name":"my-service", "sdk_version":"1.0"}`
 	req := httptest.NewRequest("POST", "/api/registry/handshake", strings.NewReader(body))

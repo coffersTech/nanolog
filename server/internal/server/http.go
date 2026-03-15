@@ -117,9 +117,14 @@ func (s *IngestServer) RegisterConsoleRoutes(mux *http.ServeMux) {
 
 	// Registry Routes (if enabled)
 	if s.registry != nil {
-		regServer := registry.NewServer(s.registry)
+		log.Println("[HTTP] Enabling Registry & Device Management routes")
+		regServer := registry.NewServer(s.registry, s.metaStore)
 		mux.HandleFunc("/api/registry/handshake", regServer.HandleHandshake)
 		mux.HandleFunc("/api/registry/instances", regServer.HandleListInstances)
+		mux.Handle("/api/registry/devices", s.AuthMiddleware(http.HandlerFunc(regServer.HandleListDevices)))
+		mux.Handle("/api/registry/devices/", s.AuthMiddleware(http.HandlerFunc(regServer.HandleDeleteDevice)))
+	} else {
+		log.Println("[HTTP] Registry store is nil, registry routes skipped")
 	}
 }
 

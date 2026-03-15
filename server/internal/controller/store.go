@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coffersTech/nanolog/server/internal/models"
 	"github.com/coffersTech/nanolog/server/internal/pkg/security"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -36,10 +37,11 @@ type Config struct {
 
 // MetaData is the top-level container for system metadata.
 type MetaData struct {
-	Initialized bool       `json:"initialized"`
-	Users       []User     `json:"users"`
-	Tokens      []APIToken `json:"tokens"`
-	Config      Config     `json:"config"`
+	Initialized bool              `json:"initialized"`
+	Users       []User            `json:"users"`
+	Tokens      []APIToken        `json:"tokens"`
+	Devices     []models.Instance `json:"devices"` // Persisted registerd devices
+	Config      Config            `json:"config"`
 }
 
 // Store handles the persistence and in-memory management of MetaData.
@@ -54,9 +56,10 @@ func NewStore(filePath string) *Store {
 	return &Store{
 		filePath: filePath,
 		data: &MetaData{
-			Users:  make([]User, 0),
-			Tokens: make([]APIToken, 0),
-			Config: Config{Retention: "168h"},
+			Users:   make([]User, 0),
+			Tokens:  make([]APIToken, 0),
+			Devices: make([]models.Instance, 0),
+			Config:  Config{Retention: "168h"},
 		},
 	}
 }
@@ -116,6 +119,16 @@ func (s *Store) GetData() MetaData {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return *s.data
+}
+
+// GetDevices returns all persisted devices.
+func (s *Store) GetDevices() []models.Instance {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Return a copy to avoid race conditions
+	devices := make([]models.Instance, len(s.data.Devices))
+	copy(devices, s.data.Devices)
+	return devices
 }
 
 // IsInitialized returns the initialization status.
@@ -250,3 +263,43 @@ func (s *Store) UpdateUserPassword(username, passwordHash string) error {
 	}
 	return os.ErrNotExist
 }
+
+// AddOrUpdateDevice persists a device in the metadata.
+func (s *Store) AddOrUpdateDevice(device models.Instance) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	found := false
+	for i, d := range s.data.Devices {
+		if d.InstanceID == device.InstanceID {
+			// Preserve original registration time
+			if d.RegisteredAt != 0 {
+				device.RegisteredAt = d.RegisteredAt
+			}
+			s.data.Devices[i] = device
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		s.data.Devices = append(s.data.Devices, device)
+	}
+
+	return s.saveLocked()
+}
+
+// DeleteDevice removes a device from persistent metadata.
+func (s *Store) DeleteDevice(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, d := range s.data.Devices {
+		if d.InstanceID == id {
+			s.data.Devices = append(s.data.Devices[:i], s.data.Devices[i+1:]...)
+			return s.saveLocked()
+		}
+	}
+	return os.ErrNotExist
+}
+

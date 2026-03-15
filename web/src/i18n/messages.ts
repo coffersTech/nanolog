@@ -1,4 +1,4 @@
-const messages = {
+export const messages = {
     en: {
         common: {
             cancel: "Cancel",
@@ -20,7 +20,8 @@ const messages = {
             data_node: "Data Node",
             version: "v0.5.0",
             online: "Online",
-            offline: "Offline"
+            offline: "Offline",
+            never: "Never"
         },
         nav: {
             discover: "Discover",
@@ -30,7 +31,8 @@ const messages = {
             change_password: "Change Password",
             header_monitor: "Monitor",
             header_system: "System",
-            instances: "Instances"
+            instances: "Instances",
+            devices: "Devices Assets"
         },
         search: {
             placeholder: "Search logs (e.g. level=ERROR service=auth)...",
@@ -74,7 +76,7 @@ const messages = {
             refresh_5m: "Every 5m",
             refresh_10m: "Every 10m",
             refresh_30m: "Every 30m",
-            tz_local: "Local Timezone (UTC+08:00)"
+            tz_local: "Local Timezone"
         },
         table: {
             timestamp: "Timestamp",
@@ -101,10 +103,22 @@ const messages = {
             remember_me: "Remember Me",
             authenticating: "Authenticating...",
             unlock_dashboard: "Unlock Dashboard",
-            security_badge: "NanoLog v0.5.0 Standard Security",
+            security_badge: "v0.5.0 Standard Security",
+            welcome_back: "Welcome Back",
+            adv_intel: "Advanced Intelligence",
+            feature_security_title: "Enterprise Security",
+            feature_security_desc: "Enterprise-grade security policies and centralized access control.",
+            feature_perf_title: "Real-time Performance",
+            feature_perf_desc: "Sub-second query latency for massive log datasets.",
+            release_status: "Current Release",
+            uptime_rel: "Uptime Reliable",
+            system_online: "System Online",
+            contact_it: "Contact IT",
+            footer_note: "Encrypted Security Node v0.5",
             engine_mode_title: "NanoLog Data Node",
             engine_mode_desc: "This instance is configured as a high-performance ingest engine. Interaction is restricted to API based logging and analytics.",
-            engine_mode_hint: "Use API Keys or Admin Console for access."
+            engine_mode_hint: "Use API Keys or Admin Console for access.",
+            admin_mode_desc: "ADMIN CONSOLE MODE: Centralized management and security policy control."
         },
         init: {
             title: "System Out-of-Box",
@@ -164,6 +178,12 @@ const messages = {
             admin: "Admin",
             viewer: "Viewer"
         },
+        levels: {
+            error: "Error",
+            warn: "Warning",
+            info: "Info",
+            debug: "Debug"
+        },
         alerts: {
             retention_updated: "Retention policy updated. Will take effect on next restart.",
             user_deleted: "User {username} deleted",
@@ -180,14 +200,41 @@ const messages = {
         },
         dashboard: {
             title: "System Overview",
-            level_dist: "Level Distribution",
+            subtitle: "Real-time system health and ingestion metrics",
+            system_live: "System Live",
+            level_dist: "Log Distribution",
             top_services: "Top Services",
-            logs_sec: "logs/sec"
+            logs_sec: "logs/sec",
+            stored_entries: "Stored Entries",
+            storage_used: "Storage Used",
+            trend_title: "Ingestion Trend (Last Hour)",
+            dist_desc: "Distribution data is updated every 5 seconds based on internal engine aggregates.",
+            level_error_desc: "High Priority",
+            level_warn_desc: "Action Required",
+            level_info_desc: "Standard",
+            chart_live: "Live",
+            chart_now: "Now",
+            chart_60m: "-60 min",
+            no_service_data: "No service data available yet."
         },
         empty: {
             no_logs_cluster: "No logs found in this cluster",
             try_ingesting: "Try broadening the search or ingesting more data.",
-            no_instances: "No instances registered."
+            no_instances: "No instances registered.",
+            no_devices: "No managed devices found."
+        },
+        devices: {
+            title: "Managed Assets",
+            total_assets: "Total Assets",
+            search_placeholder: "Search by hostname, service or IP...",
+            unbind_confirm: "Are you sure you want to unbind this device? This will not stop the service but it will remove it from the asset list.",
+            ip_address: "IP Address",
+            sdk_version: "SDK Version",
+            first_seen: "First Seen",
+            last_online: "Last Online",
+            status_live: "Live",
+            status_offline: "Offline",
+            no_managed_devices: "No managed devices found."
         }
     },
     zh: {
@@ -211,7 +258,8 @@ const messages = {
             data_node: "数据节点",
             version: "v0.5.0",
             online: "在线",
-            offline: "离线"
+            offline: "离线",
+            never: "从未"
         },
         nav: {
             discover: "探索",
@@ -221,7 +269,8 @@ const messages = {
             change_password: "修改密码",
             header_monitor: "监控",
             header_system: "系统",
-            instances: "在线实例"
+            instances: "在线实例",
+            devices: "设备资产"
         },
         search: {
             placeholder: "搜索日志 (例如 level=ERROR service=auth)...",
@@ -266,7 +315,7 @@ const messages = {
             refresh_5m: "每5分钟",
             refresh_10m: "每10分钟",
             refresh_30m: "每30分钟",
-            tz_local: "浏览器本地时区 (UTC+08:00)"
+            tz_local: "浏览器本地时区"
         },
         table: {
             timestamp: "时间戳",
@@ -294,9 +343,21 @@ const messages = {
             authenticating: "认证中...",
             unlock_dashboard: "解锁仪表盘",
             security_badge: "NanoLog v0.5.0 标准安全",
+            welcome_back: "欢迎回来",
+            adv_intel: "新一代智能日志引擎",
+            feature_security_title: "企业级安全",
+            feature_security_desc: "企业级安全策略与集中化访问控制。",
+            feature_perf_title: "实时处理性能",
+            feature_perf_desc: "针对海量数据集的毫秒级查询响应。",
+            release_status: "当前版本",
+            uptime_rel: "稳定运行时间",
+            system_online: "系统在线",
+            contact_it: "联系 IT",
+            footer_note: "加密安全节点 v0.5",
             engine_mode_title: "NanoLog 数据节点",
             engine_mode_desc: "此实例配置为高性能摄入引擎。交互仅限于基于 API 的日志记录和分析。",
-            engine_mode_hint: "使用 API Key 或管理控制台进行访问。"
+            engine_mode_hint: "使用 API Key 或管理控制台进行访问。",
+            admin_mode_desc: "管理控制台模式：集中化管理与安全策略控制。"
         },
         init: {
             title: "系统初始化",
@@ -357,6 +418,12 @@ const messages = {
             admin: "管理员",
             viewer: "查看者"
         },
+        levels: {
+            error: "错误",
+            warn: "警告",
+            info: "信息",
+            debug: "调试"
+        },
         alerts: {
             retention_updated: "保留策略已更新。将在下次重启时生效。",
             user_deleted: "用户 {username} 已删除",
@@ -373,14 +440,41 @@ const messages = {
         },
         dashboard: {
             title: "系统概览",
-            level_dist: "级别分布",
+            subtitle: "实时系统运行状态与数据摄入指标",
+            system_live: "系统在线",
+            level_dist: "日志级别分布",
             top_services: "热门服务",
-            logs_sec: "条/秒"
+            logs_sec: "条/秒",
+            stored_entries: "已存储条目",
+            storage_used: "已用存储空间",
+            trend_title: "最近一小时摄入趋势",
+            dist_desc: "分布数据每 5 秒根据内部引擎聚合结果更新。",
+            level_error_desc: "高优先级",
+            level_warn_desc: "需要关注",
+            level_info_desc: "标准级别",
+            chart_live: "实时数据",
+            chart_now: "现在",
+            chart_60m: "-60 分钟",
+            no_service_data: "暂无服务统计数据。"
         },
         empty: {
             no_logs_cluster: "集群中未找到日志",
             try_ingesting: "请尝试扩大搜索范围或摄入更多数据。",
-            no_instances: "未注册任何实例。"
+            no_instances: "未注册任何实例。",
+            no_devices: "未发现任何托管设备。"
+        },
+        devices: {
+            title: "受管资产",
+            total_assets: "资产总计",
+            search_placeholder: "搜索主机名, 服务或 IP...",
+            unbind_confirm: "确定要解除此设备的绑定吗？这不会停止服务，但会将其从资产列表中移除。",
+            ip_address: "IP 地址",
+            sdk_version: "SDK 版本",
+            first_seen: "首见时间",
+            last_online: "最后在线",
+            status_live: "在线",
+            status_offline: "离线",
+            no_managed_devices: "未发现任何托管设备。"
         }
     }
 };

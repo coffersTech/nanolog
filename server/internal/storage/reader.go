@@ -192,8 +192,17 @@ func (it *FileIterator) Next() bool {
 		}
 
 		msg := it.messages[it.cursor]
-		if it.filter.Query != "" && !strings.Contains(msg, it.filter.Query) {
-			continue
+
+		// Full-text search across service, host, and message
+		if it.filter.Query != "" {
+			q := strings.ToLower(it.filter.Query)
+			lowerSvc := strings.ToLower(it.services[it.cursor])
+			lowerHost := strings.ToLower(it.hosts[it.cursor])
+			lowerMsg := strings.ToLower(it.messages[it.cursor])
+
+			if !strings.Contains(lowerSvc, q) && !strings.Contains(lowerHost, q) && !strings.Contains(lowerMsg, q) {
+				continue
+			}
 		}
 
 		// Match found
