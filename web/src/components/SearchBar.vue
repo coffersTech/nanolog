@@ -3,26 +3,52 @@ import { ref } from 'vue';
 import { useAppStore } from '@/store';
 import { Search, HelpCircle, RefreshCw } from 'lucide-vue-next';
 import TimeRangeSelector from './TimeRangeSelector.vue';
+import ServiceSelector from './ServiceSelector.vue';
 
 const store = useAppStore();
 const searchQuery = ref('');
 const loading = ref(false);
+const selectedService = ref('');
 
 const emit = defineEmits(['search', 'refresh', 'auto-refresh']);
 
 const currentRange = ref('15m');
 
 const handleSearch = () => {
-  emit('search', searchQuery.value, currentRange.value);
+  const query = buildQuery();
+  emit('search', query, currentRange.value);
 };
 
 const handleRefresh = () => {
-  emit('refresh', searchQuery.value, currentRange.value);
+  const query = buildQuery();
+  emit('refresh', query, currentRange.value);
 };
 
 const handleRangeUpdate = (range: string) => {
   currentRange.value = range;
-  emit('search', searchQuery.value, range);
+  const query = buildQuery();
+  emit('search', query, range);
+};
+
+const handleServiceSelect = (service: string) => {
+  selectedService.value = service;
+  const query = buildQuery();
+  emit('search', query, currentRange.value);
+};
+
+const buildQuery = () => {
+  let query = searchQuery.value;
+  
+  if (selectedService.value) {
+    const serviceFilter = `service:${selectedService.value}`;
+    if (query) {
+      query = `${serviceFilter} AND ${query}`;
+    } else {
+      query = serviceFilter;
+    }
+  }
+  
+  return query;
 };
 </script>
 
@@ -30,6 +56,7 @@ const handleRangeUpdate = (range: string) => {
   <header class="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-8 shrink-0 relative z-40">
     <div class="flex items-center space-x-3 flex-1">
       <TimeRangeSelector @update="handleRangeUpdate" @auto-refresh="$emit('auto-refresh', $event)" />
+      <ServiceSelector @select="handleServiceSelect" />
 
       <div class="relative flex-1 group">
         <input 

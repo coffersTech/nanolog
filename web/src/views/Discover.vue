@@ -6,6 +6,7 @@ import SearchBar from '@/components/SearchBar.vue';
 import LogTable from '@/components/LogTable.vue';
 import Histogram from '@/components/Histogram.vue';
 import ContextModal from '@/components/ContextModal.vue';
+import LogDrawer from '@/components/LogDrawer.vue';
 import { LogItem } from '@/types';
 import { Shield } from 'lucide-vue-next';
 
@@ -17,6 +18,8 @@ const loading = ref(false);
 
 const lastQuery = ref('');
 const lastRange = ref<any>('15m');
+const currentOffset = ref(0);
+const lastTimestamp = ref(0);
 const autoRefreshTimer = ref<any>(null);
 
 const contextModal = ref({
@@ -26,6 +29,20 @@ const contextModal = ref({
   pre: [] as LogItem[],
   post: [] as LogItem[]
 });
+
+const drawer = ref({
+  show: false,
+  log: null as LogItem | null
+});
+
+const handleSelectLog = (log: LogItem) => {
+  drawer.value.log = log;
+  drawer.value.show = true;
+};
+
+const closeDrawer = () => {
+  drawer.value.show = false;
+};
 
 const handleViewContext = async (log: LogItem) => {
   contextModal.value = {
@@ -128,73 +145,74 @@ const fetchLogs = async (query: string = lastQuery.value, range: any = lastRange
   loading.value = true;
   lastQuery.value = query;
   lastRange.value = range;
-  
+
+  if (!append) {
+    currentOffset.value = 0;
+    lastTimestamp.value = 0;
+  }
+
   try {
     const params = new URLSearchParams();
-    // Moved q append to listParams section below to avoid leaking into Histogram
-    
+
     let start: number, end: number;
     const { interval, duration } = getHistogramParams(range);
 
     if (typeof range === 'object' && range.start && range.end) {
       start = range.start;
       end = range.end;
-      
-      // If appending, use the last log's timestamp - 1ns as the new 'end'
-      if (append && logs.value.length > 0) {
-        end = logs.value[logs.value.length - 1].timestamp - 1;
-      }
     } else {
       const now = Date.now() * 1000000;
       end = now;
-      
-      if (append && logs.value.length > 0) {
-        end = logs.value[logs.value.length - 1].timestamp - 1;
-      }
-      
       start = (typeof range === 'object' && range.start) ? range.start : (now - (duration * 1000000000));
-      
+
       if (range === 'today') {
         const d = new Date(); d.setHours(0,0,0,0);
         start = d.getTime() * 1000000;
       } else if (range === 'yesterday') {
         const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(0,0,0,0);
         start = d.getTime() * 1000000;
-        if (!append) {
-          const e = new Date(); e.setDate(e.getDate() - 1); e.setHours(23,59,59,999);
-          end = e.getTime() * 1000000;
-        }
+        const e = new Date(); e.setDate(e.getDate() - 1); e.setHours(23,59,59,999);
+        end = e.getTime() * 1000000;
       }
     }
 
     params.append('start', start.toString());
     params.append('end', end.toString());
     params.append('limit', '100');
-    
+
+    if (append && lastTimestamp.value > 0) {
+      params.append('cursor', lastTimestamp.value.toString());
+    }
+
     const listParams = new URLSearchParams(params);
     const histParams = new URLSearchParams(params);
-    
-    // List params keep the query
+
     if (query) listParams.append('q', query);
-    // Explicitly ensure Histogram ignores the query
     histParams.delete('q');
 
     const commonListParams = listParams.toString();
     const commonHistParams = histParams.toString();
-    
+
     const [logsData, hist] = await Promise.all([
       api.searchLogs(commonListParams),
-      // Only fetch histogram on initial load, not on append
       append ? Promise.resolve(null) : api.getHistogram(`${commonHistParams}&interval=${interval}`)
     ]);
 
     if (append) {
       logs.value = [...logs.value, ...(logsData || [])];
+      if (logsData && logsData.length > 0) {
+        lastTimestamp.value = logsData[logsData.length - 1].timestamp;
+      }
       if (!logsData || logsData.length === 0) {
-        store.addToast('No more logs found in this range', 'info');
+        store.addToast(store.t('search.no_more_logs'), 'info');
       }
     } else {
       logs.value = logsData || [];
+      if (logsData && logsData.length > 0) {
+        lastTimestamp.value = logsData[logsData.length - 1].timestamp;
+      } else {
+        lastTimestamp.value = 0;
+      }
       if (hist) {
         histogramData.value = hist || [];
         histogramTotal.value = histogramData.value.reduce((acc: number, curr: any) => acc + curr.count, 0);
@@ -262,7 +280,7 @@ onUnmounted(() => {
         <Histogram :data="histogramData" :interval="currentHistogramParams.interval" :duration="currentHistogramParams.duration" :loading="loading" />
     </div>
 
-    <LogTable :logs="logs" :loading="loading" :search-query="lastQuery" @view-context="handleViewContext" @load-more="handleLoadMore" />
+    <LogTable :logs="logs" :loading="loading" :search-query="lastQuery" @select="handleSelectLog" @load-more="handleLoadMore" />
     
     <ContextModal 
       :show="contextModal.show"
@@ -271,6 +289,14 @@ onUnmounted(() => {
       :pre="contextModal.pre"
       :post="contextModal.post"
       @close="closeContextModal"
+    />
+
+    <LogDrawer 
+      :show="drawer.show"
+      :log="drawer.log"
+      :search-query="lastQuery"
+      @close="closeDrawer"
+      @view-context="handleViewContext"
     />
   </div>
 </template>

@@ -269,8 +269,10 @@ func (qe *QueryEngine) flushMemTable(mt *MemTable) {
 }
 
 // ExecuteScan scans memory and then .nano files and returns up to `limit` rows matching the filter.
+// Supports two pagination modes:
+// 1. Legacy offset-based (Filter.Offset > 0): Less efficient for deep pagination
+// 2. Cursor-based (Filter.CursorTs > 0): Efficient - returns rows with timestamp < CursorTs
 func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
-	// Parse NanoQL query if present
 	var nqlNode interface{}
 	if filter.Query != "" {
 		node, err := ParseNanoQL(filter.Query)
@@ -280,21 +282,55 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 		nqlNode = node
 	}
 
-	// 1. Grab current MemTable under lock to avoid inconsistency if swapped
+	var targetCount int
+	if filter.CursorTs > 0 {
+		targetCount = limit
+	} else {
+		targetCount = limit
+		if filter.Offset > 0 {
+			targetCount = filter.Offset + limit
+		}
+	}
+
 	qe.mu.RLock()
 	mt := qe.mt
 	qe.mu.RUnlock()
 
-	// 2. Search MemTable first (memory) with NanoQL
-	result := mt.SearchWithNanoQL(filter, nqlNode, limit)
+	result := mt.SearchWithNanoQL(filter, nqlNode, targetCount)
 
-	if len(result) >= limit {
-		return result, nil
+	if filter.CursorTs > 0 {
+		var cursorResult []LogRow
+		for _, row := range result {
+			if row.Timestamp < filter.CursorTs {
+				cursorResult = append(cursorResult, row)
+				if len(cursorResult) >= limit {
+					break
+				}
+			}
+		}
+
+		if len(cursorResult) >= limit {
+			return cursorResult, nil
+		}
+
+		result = cursorResult
+	} else {
+		if len(result) >= targetCount {
+			if filter.Offset > 0 {
+				if filter.Offset >= len(result) {
+					return []LogRow{}, nil
+				}
+				return result[filter.Offset:], nil
+			}
+			return result, nil
+		}
 	}
 
-	// 3. Search persisted files
 	files, err := qe.findNanoFiles()
 	if err != nil {
+		if filter.Offset > 0 && filter.Offset < len(result) {
+			return result[filter.Offset:], nil
+		}
 		return result, err
 	}
 
@@ -307,24 +343,25 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 			break
 		}
 
-		// File Pruning: Parse timestamps from filename (log_minTs_maxTs.nano)
 		minTs, maxTs, err := parseTsFromFilename(file)
 		if err == nil {
 			if filter.MinTime > 0 && maxTs < filter.MinTime {
-				continue // File is too old
+				continue
 			}
 			if filter.MaxTime > 0 && minTs > filter.MaxTime {
-				continue // File is too new
+				continue
+			}
+
+			if filter.CursorTs > 0 && maxTs >= filter.CursorTs {
+				continue
 			}
 		}
 
 		rows, err := qe.readerFunc(file, filter)
 		if err != nil {
-			// Log error but continue with other files
 			continue
 		}
 
-		// Apply NanoQL filter to disk results
 		if nqlNode != nil {
 			filteredRows := make([]LogRow, 0, len(rows))
 			for i := range rows {
@@ -335,19 +372,34 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 			rows = filteredRows
 		}
 
-		// Rows from ReadSnapshot are oldest-first (file order). 
-		// We need newest-first for ExecuteScan.
 		sort.Slice(rows, func(i, j int) bool {
 			return rows[i].Timestamp > rows[j].Timestamp
 		})
 
-		// Append rows up to limit
-		remaining := limit - len(result)
-		if len(rows) <= remaining {
-			result = append(result, rows...)
+		if filter.CursorTs > 0 {
+			for _, row := range rows {
+				if len(result) >= limit {
+					break
+				}
+				if row.Timestamp < filter.CursorTs {
+					result = append(result, row)
+				}
+			}
 		} else {
-			result = append(result, rows[:remaining]...)
+			remaining := limit - len(result)
+			if len(rows) <= remaining {
+				result = append(result, rows...)
+			} else {
+				result = append(result, rows[:remaining]...)
+			}
 		}
+	}
+
+	if filter.CursorTs <= 0 && filter.Offset > 0 {
+		if filter.Offset >= len(result) {
+			return []LogRow{}, nil
+		}
+		return result[filter.Offset:], nil
 	}
 
 	return result, nil

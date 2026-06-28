@@ -76,7 +76,10 @@ export const messages = {
             refresh_5m: "Every 5m",
             refresh_10m: "Every 10m",
             refresh_30m: "Every 30m",
-            tz_local: "Local Timezone"
+            tz_local: "Local Timezone",
+            load_more: "Load More Logs",
+            no_more_logs: "No more logs found in this range",
+            all_services: "All Services"
         },
         table: {
             timestamp: "Timestamp",
@@ -84,6 +87,7 @@ export const messages = {
             service: "Service",
             host: "Host",
             message: "Message",
+            no: "#",
             username: "Username",
             role: "Role",
             created_at: "Created At",
@@ -235,6 +239,17 @@ export const messages = {
             status_live: "Live",
             status_offline: "Offline",
             no_managed_devices: "No managed devices found."
+        },
+        drawer: {
+            log_details: "Log Details",
+            meta_info: "Meta Information",
+            service: "Service",
+            host: "Host",
+            level: "Level",
+            timestamp: "Timestamp",
+            unix_nanos: "Unix Nanos",
+            log_payload: "Log Payload",
+            view_context: "View Context"
         }
     },
     zh: {
@@ -315,7 +330,10 @@ export const messages = {
             refresh_5m: "每5分钟",
             refresh_10m: "每10分钟",
             refresh_30m: "每30分钟",
-            tz_local: "浏览器本地时区"
+            tz_local: "浏览器本地时区",
+            load_more: "加载更多日志",
+            no_more_logs: "当前范围内没有更多日志",
+            all_services: "所有服务"
         },
         table: {
             timestamp: "时间戳",
@@ -323,6 +341,7 @@ export const messages = {
             service: "服务",
             host: "主机",
             message: "消息",
+            no: "#",
             username: "用户名",
             role: "角色",
             created_at: "创建时间",
@@ -475,6 +494,17 @@ export const messages = {
             status_live: "在线",
             status_offline: "离线",
             no_managed_devices: "未发现任何托管设备。"
+        },
+        drawer: {
+            log_details: "日志详情",
+            meta_info: "元信息",
+            service: "服务",
+            host: "主机",
+            level: "级别",
+            timestamp: "时间戳",
+            unix_nanos: "Unix 纳秒",
+            log_payload: "日志内容",
+            view_context: "查看上下文"
         }
     }
 };

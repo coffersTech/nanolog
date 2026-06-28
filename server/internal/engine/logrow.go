@@ -22,10 +22,12 @@ func (r *LogRow) GetTraceID() string  { return r.TraceID }
 
 // Filter defines criteria for log retrieval.
 type Filter struct {
-	MinTime int64  `json:"min_time"`
-	MaxTime int64  `json:"max_time"`
-	Level   uint8  `json:"level"`
-	Service string `json:"service"`
-	Host    string `json:"host"`
-	Query   string `json:"q"` // NanoQL query string
+	MinTime  int64  `json:"min_time"`
+	MaxTime  int64  `json:"max_time"`
+	Level    uint8  `json:"level"`
+	Service  string `json:"service"`
+	Host     string `json:"host"`
+	Query    string `json:"q"`     // NanoQL query string
+	Offset   int    `json:"offset"` // Pagination offset (legacy)
+	CursorTs int64  `json:"cursor"` // Cursor timestamp for efficient pagination
 }

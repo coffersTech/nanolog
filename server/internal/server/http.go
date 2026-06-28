@@ -744,6 +744,16 @@ func (s *IngestServer) parseFilter(r *http.Request) engine.Filter {
 	filter.Service = r.URL.Query().Get("service")
 	filter.Host = r.URL.Query().Get("host")
 	filter.Query = r.URL.Query().Get("q")
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if val, err := strconv.Atoi(offsetStr); err == nil && val >= 0 {
+			filter.Offset = val
+		}
+	}
+	if cursorStr := r.URL.Query().Get("cursor"); cursorStr != "" {
+		if val, err := strconv.ParseInt(cursorStr, 10, 64); err == nil && val > 0 {
+			filter.CursorTs = val
+		}
+	}
 	return filter
 }
 
