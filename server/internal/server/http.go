@@ -134,10 +134,12 @@ func (s *IngestServer) RegisterConsoleRoutes(mux *http.ServeMux) {
 		mux.HandleFunc("/api/registry/handshake", regServer.HandleHandshake)
 		mux.HandleFunc("/api/registry/instances", regServer.HandleListInstances)
 		mux.Handle("/api/registry/devices", s.AuthMiddleware(http.HandlerFunc(regServer.HandleListDevices)))
+		mux.Handle("/api/registry/devices/offline", s.AuthMiddleware(http.HandlerFunc(regServer.HandleClearOfflineDevices)))
 		mux.Handle("/api/registry/devices/", s.AuthMiddleware(http.HandlerFunc(regServer.HandleDeleteDevice)))
 	} else {
 		log.Println("[HTTP] Registry store is nil, registry routes skipped")
 	}
+
 }
 
 func (s *IngestServer) RegisterIngesterRoutes(mux *http.ServeMux) {

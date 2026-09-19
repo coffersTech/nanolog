@@ -13,6 +13,7 @@ type PersistentStore interface {
 	AddOrUpdateDevice(device models.Instance) error
 	DeleteDevice(id string) error
 	GetDevices() []models.Instance
+	ClearOfflineDevices(timeoutSec int64) (int, error)
 }
 
 // Server handles registry-related HTTP requests.
@@ -28,6 +29,7 @@ func NewServer(store *Store, meta PersistentStore) *Server {
 		metaStore: meta,
 	}
 }
+
 
 // HandleHandshake handles SDK registration and heartbeat requests.
 // POST /api/registry/handshake
@@ -160,3 +162,30 @@ func (s *Server) HandleDeleteDevice(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// HandleClearOfflineDevices removes all offline devices from persistent metadata.
+// DELETE /api/registry/devices/offline
+func (s *Server) HandleClearOfflineDevices(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.metaStore == nil {
+		http.Error(w, "Metadata store not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	removed, err := s.metaStore.ClearOfflineDevices(60) // 60 seconds threshold
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "success",
+		"removed": removed,
+	})
+}
+

@@ -59,14 +59,23 @@ func evalMatch(expr MatchExpr, row LogRecord) bool {
 	// Evaluate based on operator
 	switch expr.Op {
 	case "=":
+		keyLower := strings.ToLower(expr.Key)
+		if keyLower == "message" || keyLower == "msg" {
+			return containsIgnoreCase(fieldValue, expr.Value)
+		}
 		return matchEqual(fieldValue, expr.Value)
 	case "!=":
+		keyLower := strings.ToLower(expr.Key)
+		if keyLower == "message" || keyLower == "msg" {
+			return !containsIgnoreCase(fieldValue, expr.Value)
+		}
 		return !matchEqual(fieldValue, expr.Value)
 	case "CONTAINS":
 		return containsIgnoreCase(fieldValue, expr.Value)
 	default:
 		return matchEqual(fieldValue, expr.Value)
 	}
+
 }
 
 // getFieldValue returns the value of a field by name.

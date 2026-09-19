@@ -269,24 +269,72 @@ func (s *Store) AddOrUpdateDevice(device models.Instance) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	found := false
+	now := time.Now().Unix()
+
+	// 1. Exact match by InstanceID
 	for i, d := range s.data.Devices {
 		if d.InstanceID == device.InstanceID {
-			// Preserve original registration time
 			if d.RegisteredAt != 0 {
 				device.RegisteredAt = d.RegisteredAt
 			}
 			s.data.Devices[i] = device
-			found = true
-			break
+			return s.saveLocked()
 		}
 	}
 
-	if !found {
-		s.data.Devices = append(s.data.Devices, device)
+	// 2. Smart Replacement: If InstanceID changed (e.g. container restarted),
+	// but ServiceName and IP (or ServiceName and Hostname) match an existing OFFLINE device,
+	// reuse & replace that offline device slot rather than creating a duplicate asset.
+	for i, d := range s.data.Devices {
+		isOffline := (now - d.LastSeenAt) > 60
+		if isOffline && d.ServiceName == device.ServiceName {
+			sameIP := device.IP != "" && d.IP == device.IP
+			sameHost := device.Hostname != "" && d.Hostname == device.Hostname
+
+			if sameIP || sameHost {
+				if d.RegisteredAt != 0 {
+					device.RegisteredAt = d.RegisteredAt
+				}
+				s.data.Devices[i] = device
+				return s.saveLocked()
+			}
+		}
 	}
 
+	// 3. New device asset
+	s.data.Devices = append(s.data.Devices, device)
 	return s.saveLocked()
+}
+
+// ClearOfflineDevices removes all devices that have been offline for longer than timeoutSec seconds.
+func (s *Store) ClearOfflineDevices(timeoutSec int64) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().Unix()
+	if timeoutSec <= 0 {
+		timeoutSec = 60 // Default 60 seconds offline threshold
+	}
+
+	activeDevices := make([]models.Instance, 0, len(s.data.Devices))
+	removedCount := 0
+
+	for _, d := range s.data.Devices {
+		if now-d.LastSeenAt > timeoutSec {
+			removedCount++
+		} else {
+			activeDevices = append(activeDevices, d)
+		}
+	}
+
+	if removedCount > 0 {
+		s.data.Devices = activeDevices
+		if err := s.saveLocked(); err != nil {
+			return 0, err
+		}
+	}
+
+	return removedCount, nil
 }
 
 // DeleteDevice removes a device from persistent metadata.
@@ -302,4 +350,5 @@ func (s *Store) DeleteDevice(id string) error {
 	}
 	return os.ErrNotExist
 }
+
 

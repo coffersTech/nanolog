@@ -66,3 +66,83 @@ func TestServer_HandleHandshake(t *testing.T) {
 		t.Error("Instance should be registered")
 	}
 }
+
+type mockMetaStore struct {
+	devices []models.Instance
+}
+
+func (m *mockMetaStore) AddOrUpdateDevice(device models.Instance) error {
+	for i, d := range m.devices {
+		if d.InstanceID == device.InstanceID {
+			m.devices[i] = device
+			return nil
+		}
+	}
+	for i, d := range m.devices {
+		if (time.Now().Unix()-d.LastSeenAt) > 60 && d.ServiceName == device.ServiceName {
+			if (device.IP != "" && d.IP == device.IP) || (device.Hostname != "" && d.Hostname == device.Hostname) {
+				m.devices[i] = device
+				return nil
+			}
+		}
+	}
+	m.devices = append(m.devices, device)
+	return nil
+}
+
+func (m *mockMetaStore) DeleteDevice(id string) error {
+	for i, d := range m.devices {
+		if d.InstanceID == id {
+			m.devices = append(m.devices[:i], m.devices[i+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *mockMetaStore) GetDevices() []models.Instance {
+	return m.devices
+}
+
+func (m *mockMetaStore) ClearOfflineDevices(timeoutSec int64) (int, error) {
+	now := time.Now().Unix()
+	active := make([]models.Instance, 0)
+	removed := 0
+	for _, d := range m.devices {
+		if now-d.LastSeenAt > timeoutSec {
+			removed++
+		} else {
+			active = append(active, d)
+		}
+	}
+	m.devices = active
+	return removed, nil
+}
+
+func TestServer_ClearOfflineDevices(t *testing.T) {
+	mock := &mockMetaStore{
+		devices: []models.Instance{
+			{InstanceID: "online-1", ServiceName: "svc-1", LastSeenAt: time.Now().Unix()},
+			{InstanceID: "offline-1", ServiceName: "svc-2", LastSeenAt: time.Now().Unix() - 100},
+		},
+	}
+	store := NewStore()
+	server := NewServer(store, mock)
+
+	req := httptest.NewRequest("DELETE", "/api/registry/devices/offline", nil)
+	w := httptest.NewRecorder()
+
+	server.HandleClearOfflineDevices(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", w.Code)
+	}
+
+	if len(mock.devices) != 1 {
+		t.Errorf("Expected 1 device remaining, got %d", len(mock.devices))
+	}
+	if mock.devices[0].InstanceID != "online-1" {
+		t.Errorf("Expected online-1 remaining, got %s", mock.devices[0].InstanceID)
+	}
+}
+

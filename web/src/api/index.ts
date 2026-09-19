@@ -77,6 +77,15 @@ export const api = {
     return res;
   },
 
+  async clearOfflineDevices() {
+    const res = await apiFetch('/api/registry/devices/offline', {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+
   async getUsers() {
     const res = await apiFetch('/api/users');
     return res.json();

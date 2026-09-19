@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useAppStore } from '@/store';
 import { api } from '@/api';
 import { Instance } from '@/types';
-import { Search, Trash2, Monitor, Globe, Clock, ShieldCheck } from 'lucide-vue-next';
+import { Search, Trash2, Monitor, Globe, Clock, ShieldCheck, Eraser } from 'lucide-vue-next';
 
 const store = useAppStore();
 const devices = ref<Instance[]>([]);
@@ -28,6 +28,18 @@ const deleteDevice = async (id: string) => {
         await api.deleteDevice(id);
         devices.value = devices.value.filter(d => d.instance_id !== id);
         store.addToast(store.t('alerts.success'), 'success');
+    } catch (e) {
+        store.addToast(store.t('alerts.error'), 'error');
+    }
+};
+
+const clearOfflineDevices = async () => {
+    if (!confirm(store.t('devices.clear_offline_confirm'))) return;
+    try {
+        const res = await api.clearOfflineDevices();
+        const removed = res?.removed || 0;
+        await fetchDevices();
+        store.addToast(store.t('devices.clear_offline_success', { count: removed }), 'success');
     } catch (e) {
         store.addToast(store.t('alerts.error'), 'error');
     }
@@ -74,8 +86,16 @@ onMounted(fetchDevices);
             class="pl-9 pr-4 py-1.5 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-blue-500/50 focus:bg-gray-800 transition-all w-64"
           />
         </div>
+        <button 
+          @click="clearOfflineDevices"
+          class="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-lg text-xs font-medium transition-all cursor-pointer"
+        >
+          <Eraser class="w-3.5 h-3.5" />
+          <span>{{ store.t('devices.clear_offline') }}</span>
+        </button>
       </div>
     </div>
+
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
         <div v-for="device in filteredDevices" :key="device.instance_id" 

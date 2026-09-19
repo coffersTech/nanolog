@@ -25,15 +25,23 @@ func (s *Store) RegisterOrUpdate(instance models.Instance) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	now := time.Now().Unix()
+	if instance.LastSeenAt == 0 {
+		instance.LastSeenAt = now
+	}
+
 	// If it already exists, preserve RegisteredAt
 	if existing, ok := s.instances[instance.InstanceID]; ok {
 		if instance.RegisteredAt == 0 {
 			instance.RegisteredAt = existing.RegisteredAt
 		}
+	} else if instance.RegisteredAt == 0 {
+		instance.RegisteredAt = now
 	}
 
 	s.instances[instance.InstanceID] = &instance
 }
+
 
 // GetInstance retrieves an instance by ID.
 func (s *Store) GetInstance(instanceID string) (*models.Instance, bool) {
