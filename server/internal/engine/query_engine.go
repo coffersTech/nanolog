@@ -352,12 +352,17 @@ func (qe *QueryEngine) ExecuteScan(filter Filter, limit int) ([]LogRow, error) {
 				continue
 			}
 
-			if filter.CursorTs > 0 && maxTs >= filter.CursorTs {
+			if filter.CursorTs > 0 && minTs >= filter.CursorTs {
 				continue
 			}
 		}
 
-		rows, err := qe.readerFunc(file, filter)
+		diskFilter := filter
+		if nqlNode != nil {
+			diskFilter.Query = "" // NanoQL 由上层统一使用 AST 精准匹配，避免底层 reader 做简单子串匹配误杀
+		}
+
+		rows, err := qe.readerFunc(file, diskFilter)
 		if err != nil {
 			continue
 		}

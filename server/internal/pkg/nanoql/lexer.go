@@ -3,6 +3,7 @@ package nanoql
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // TokenType represents the type of a lexical token.
@@ -46,43 +47,47 @@ func (l *Lexer) NextToken() Token {
 		return Token{Type: TokenEOF}
 	}
 
-	ch := l.input[l.pos]
+	r, size := utf8.DecodeRuneInString(l.input[l.pos:])
 
 	// Single-character tokens
-	switch ch {
+	switch r {
 	case ':':
-		l.pos++
+		l.pos += size
 		return Token{Type: TokenColon, Value: ":"}
 	case '(':
-		l.pos++
+		l.pos += size
 		return Token{Type: TokenLParen, Value: "("}
 	case ')':
-		l.pos++
+		l.pos += size
 		return Token{Type: TokenRParen, Value: ")"}
 	case '!':
 		if l.pos+1 < len(l.input) && l.input[l.pos+1] == '=' {
 			l.pos += 2
 			return Token{Type: TokenNeq, Value: "!="}
 		}
-		// Single '!' not followed by '=' is an error, treat as ident for now
+		// Single '!' not followed by '=' is treated as ident
 		return l.readIdent()
 	case '"':
 		return l.readString()
 	}
 
-	// Keywords and identifiers
-	if isIdentStart(ch) {
+	// Keywords and identifiers (including non-ASCII like Chinese)
+	if isIdentStart(r) {
 		return l.readIdent()
 	}
 
 	// Unknown character, skip
-	l.pos++
+	l.pos += size
 	return l.NextToken()
 }
 
 func (l *Lexer) skipWhitespace() {
-	for l.pos < len(l.input) && unicode.IsSpace(rune(l.input[l.pos])) {
-		l.pos++
+	for l.pos < len(l.input) {
+		r, size := utf8.DecodeRuneInString(l.input[l.pos:])
+		if !unicode.IsSpace(r) {
+			break
+		}
+		l.pos += size
 	}
 }
 
@@ -105,8 +110,12 @@ func (l *Lexer) readString() Token {
 
 func (l *Lexer) readIdent() Token {
 	start := l.pos
-	for l.pos < len(l.input) && isIdentChar(l.input[l.pos]) {
-		l.pos++
+	for l.pos < len(l.input) {
+		r, size := utf8.DecodeRuneInString(l.input[l.pos:])
+		if !isIdentChar(r) {
+			break
+		}
+		l.pos += size
 	}
 	value := l.input[start:l.pos]
 
@@ -124,11 +133,10 @@ func (l *Lexer) readIdent() Token {
 	return Token{Type: TokenIdent, Value: value}
 }
 
-func isIdentStart(ch byte) bool {
-	return unicode.IsLetter(rune(ch)) || ch == '_'
+func isIdentStart(r rune) bool {
+	return unicode.IsLetter(r) || r == '_'
 }
 
-func isIdentChar(ch byte) bool {
-	r := rune(ch)
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || ch == '_' || ch == '-' || ch == '.'
+func isIdentChar(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' || r == '.'
 }

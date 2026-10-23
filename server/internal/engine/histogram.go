@@ -84,7 +84,11 @@ func (qe *QueryEngine) ComputeHistogram(start, end int64, interval int64, filter
 		}
 
 		// Read file with basic filter (time pruning)
-		rows, err := qe.readerFunc(file, filter)
+		diskFilter := filter
+		if nqlNode != nil {
+			diskFilter.Query = ""
+		}
+		rows, err := qe.readerFunc(file, diskFilter)
 		if err != nil {
 			continue
 		}

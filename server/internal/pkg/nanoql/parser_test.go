@@ -216,3 +216,38 @@ func TestMatchCaseInsensitive(t *testing.T) {
 		})
 	}
 }
+
+func TestChineseQueries(t *testing.T) {
+	row := &testLogRow{
+		level:   3,
+		service: "订单中心",
+		host:    "10.0.0.1",
+		message: "用户支付失败，数据库连接超时",
+	}
+
+	tests := []struct {
+		query    string
+		expected bool
+	}{
+		{"支付失败", true},
+		{"超时", true},
+		{"service:订单中心", true},
+		{"service:订单中心 AND 支付失败", true},
+		{"service:订单中心 AND 成功", false},
+		{`"用户支付失败"`, true},
+		{"level:ERROR AND 超时", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			node, err := Parse(tt.query)
+			if err != nil {
+				t.Fatalf("parse error for %q: %v", tt.query, err)
+			}
+			if Match(node, row) != tt.expected {
+				t.Errorf("Match(%q) = %v, want %v", tt.query, Match(node, row), tt.expected)
+			}
+		})
+	}
+}
+

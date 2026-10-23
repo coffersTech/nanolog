@@ -173,6 +173,39 @@ const fetchLogs = async (query: string = lastQuery.value, range: any = lastRange
         start = d.getTime() * 1000000;
         const e = new Date(); e.setDate(e.getDate() - 1); e.setHours(23,59,59,999);
         end = e.getTime() * 1000000;
+      } else if (range === 'day_before_yesterday') {
+        const d = new Date(); d.setDate(d.getDate() - 2); d.setHours(0,0,0,0);
+        start = d.getTime() * 1000000;
+        const e = new Date(); e.setDate(e.getDate() - 2); e.setHours(23,59,59,999);
+        end = e.getTime() * 1000000;
+      } else if (range === 'this_week') {
+        const d = new Date();
+        const day = d.getDay() || 7;
+        d.setDate(d.getDate() - (day - 1));
+        d.setHours(0,0,0,0);
+        start = d.getTime() * 1000000;
+      } else if (range === 'last_week') {
+        const d = new Date();
+        const day = d.getDay() || 7;
+        d.setDate(d.getDate() - day - 6);
+        d.setHours(0,0,0,0);
+        start = d.getTime() * 1000000;
+        const e = new Date(d);
+        e.setDate(e.getDate() + 6);
+        e.setHours(23,59,59,999);
+        end = e.getTime() * 1000000;
+      } else if (range === 'this_month') {
+        const d = new Date();
+        d.setDate(1);
+        d.setHours(0,0,0,0);
+        start = d.getTime() * 1000000;
+      } else if (range === 'last_month') {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1, 1);
+        d.setHours(0,0,0,0);
+        start = d.getTime() * 1000000;
+        const e = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+        end = e.getTime() * 1000000;
       }
     }
 

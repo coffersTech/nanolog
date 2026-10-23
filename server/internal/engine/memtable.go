@@ -147,6 +147,10 @@ func (mt *MemTable) SearchWithNanoQL(filter Filter, nqlNode interface{}, limit i
 		}
 
 		ts := mt.TsCol[i]
+		// Cursor pruning (skip rows newer than or equal to cursor)
+		if filter.CursorTs > 0 && ts >= filter.CursorTs {
+			continue
+		}
 		// Time pruning (kept for performance)
 		if filter.MinTime > 0 && ts < filter.MinTime {
 			continue
