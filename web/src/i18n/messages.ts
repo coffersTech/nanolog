@@ -79,7 +79,9 @@ export const messages = {
             tz_local: "Local Timezone",
             load_more: "Load More Logs",
             no_more_logs: "No more logs found in this range",
-            all_services: "All Services"
+            all_services: "All Services",
+            all_levels: "All Levels",
+            placeholder_content: "Search log messages..."
         },
         table: {
             timestamp: "Timestamp",
@@ -336,7 +338,9 @@ export const messages = {
             tz_local: "浏览器本地时区",
             load_more: "加载更多日志",
             no_more_logs: "当前范围内没有更多日志",
-            all_services: "所有服务"
+            all_services: "所有服务",
+            all_levels: "所有级别",
+            placeholder_content: "搜索日志内容..."
         },
         table: {
             timestamp: "时间戳",
