@@ -220,8 +220,10 @@ const fetchLogs = async (query: string = lastQuery.value, range: any = lastRange
     const listParams = new URLSearchParams(params);
     const histParams = new URLSearchParams(params);
 
-    if (query) listParams.append('q', query);
-    histParams.delete('q');
+    if (query) {
+      listParams.append('q', query);
+      histParams.append('q', query);
+    }
 
     const commonListParams = listParams.toString();
     const commonHistParams = histParams.toString();
